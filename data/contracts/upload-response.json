@@ -1,0 +1,35 @@
+{
+  "id": "a1b2c3d4e5f6",
+  "filename": "sample.txt",
+  "content_type": "text/plain",
+  "status": "chunked",
+  "source": {
+    "storage_backend": "local",
+    "path": "./uploads/abc123_sample.txt",
+    "original_filename": "sample.txt",
+    "content_type": "text/plain",
+    "size_bytes": 1024
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "text": "CASE SUMMARY REPORT...",
+      "char_count": 1024
+    }
+  ],
+  "chunks": [
+    {
+      "chunk_id": "ch_001",
+      "document_id": "a1b2c3d4e5f6",
+      "index": 0,
+      "text": "CASE SUMMARY REPORT...",
+      "page_numbers": [1],
+      "char_start": 0,
+      "char_end": 800,
+      "token_estimate": 200
+    }
+  ],
+  "created_at": "2024-01-01T00:00:00",
+  "updated_at": "2024-01-01T00:00:00",
+  "error": null
+}

@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+apps/web/.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Next.js
+apps/web/.next/
+apps/web/out/
+
+# Python
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Docker
+*.log
+
+# Uploads (local dev)
+uploads/
+tmp/
+
+# uv
+uv.lock

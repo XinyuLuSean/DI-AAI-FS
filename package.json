@@ -1,0 +1,15 @@
+{
+  "name": "di-aai-fs",
+  "private": true,
+  "packageManager": "pnpm@10.6.2",
+  "scripts": {
+    "dev:web": "pnpm --filter @di-aai-fs/web dev",
+    "build:web": "pnpm --filter @di-aai-fs/web build",
+    "lint:web": "pnpm --filter @di-aai-fs/web lint",
+    "check:env": "bash scripts/dev/check-env.sh"
+  },
+  "engines": {
+    "node": ">=18.0.0 <23.0.0",
+    "pnpm": ">=10.0.0"
+  }
+}

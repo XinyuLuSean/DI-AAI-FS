@@ -1,0 +1,71 @@
+# Local development stack.
+#
+# This runs the full vertical slice:
+#   postgres  — data store (future; not wired in MVP in-memory store)
+#   redis     — cache / queue (future)
+#   py-api    — FastAPI backend
+#   web       — Next.js frontend
+#
+# Run:  docker compose -f infra/compose/docker-compose.yml up --build
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: di_user
+      POSTGRES_PASSWORD: di_local_password
+      POSTGRES_DB: di_aai_fs
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U di_user -d di_aai_fs"]
+      interval: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+
+  py-api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/py-api.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../../.env
+    environment:
+      STORAGE_LOCAL_PATH: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://py-api:8000
+    depends_on:
+      - py-api
+
+volumes:
+  pg_data:
+  uploads:

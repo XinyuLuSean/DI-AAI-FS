@@ -1,0 +1,39 @@
+[tool.uv.workspace]
+members = [
+  "apps/py-api",
+  "py/libs/*",
+]
+# all belong together all in same venv 
+
+# local workspace packages only
+[tool.uv.sources]
+data-model = { workspace = true }
+di-core = { workspace = true }
+ai-core = { workspace = true }
+storage = { workspace = true }
+py-api = { workspace = true }
+
+# test dependencies
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+  "httpx>=0.28",
+]
+
+# formatter
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -1,0 +1,419 @@
+# AGENT
+
+## 1. Mission
+
+You are working inside a repository whose goal is to bootstrap and gradually grow a **Document Intelligence + Applied AI + Full-Stack** platform.
+
+Your job is **not** to blindly generate a giant system.
+
+Your job is to help the user:
+
+1. understand the project deeply
+2. manually deploy and run the system step by step
+3. keep the repo interview-oriented and realistic
+4. build a very small but runnable vertical slice first
+5. preserve the architecture so the repo can grow into the final north-star design in `FINAL_ARCHITECTURE.md`
+
+Before doing anything significant, read:
+
+1. `FINAL_ARCHITECTURE.md`
+2. `AGENT.md`
+3. `README.md` if present
+4. relevant files near the requested change
+
+---
+
+## 2. Operating Mode
+
+## 2.1 Human-in-the-loop by default
+Do not act like an autopilot that hides decisions.
+
+The user wants to **learn, understand, and manually deploy**.
+
+That means:
+
+- explain what you are doing
+- explain why it matters
+- explain what the user should run locally
+- prefer explicit steps over magic automation
+- never silently introduce major architectural changes
+
+## 2.2 Interview-oriented development
+Assume the repo is also preparation material for practical engineering interviews.
+
+Prefer changes that demonstrate:
+
+- clear system boundaries
+- realistic repo structure
+- strong debugging paths
+- schema discipline
+- simple but clean APIs
+- full-stack traceability
+- evidence-backed AI outputs
+- good tradeoff explanations
+
+## 2.3 Smallest coherent step first
+Always choose the smallest change that creates a meaningful improvement.
+
+Prefer:
+
+- one vertical slice over many disconnected modules
+- one working endpoint over five speculative abstractions
+- one tested schema over many TODOs
+- one real upload-to-output flow over broad mock architecture
+
+---
+
+## 3. Hard Rules
+
+## 3.1 Always preserve a runnable path
+At all times, the repo should remain in a state where the user can reasonably run the current slice locally.
+
+Do not leave the project half-migrated.
+
+## 3.2 No major stack drift
+Do not introduce frameworks or runtime changes that conflict with the stack lock in `FINAL_ARCHITECTURE.md` unless the user explicitly approves.
+
+Default stack:
+
+- Python 3.12
+- uv
+- Node.js 18+
+- TypeScript
+- Next.js
+- React
+- FastAPI
+- PostgreSQL
+- Redis
+- Docker Compose
+- evidence-backed AI interfaces
+
+## 3.3 No hidden cloud automation
+Do not fully automate real cloud setup, secret provisioning, or deployment flows behind the user's back.
+
+Instead:
+
+- describe the purpose
+- generate the files/scripts if needed
+- tell the user exactly what to run manually
+- explain expected outputs and verification steps
+
+## 3.4 No direct UI-to-LLM shortcuts
+Do not wire UI components directly to LLM providers.
+
+Use proper backend/API boundaries.
+
+## 3.5 No schema-less core APIs
+Use explicit schemas for all important API inputs and outputs.
+
+## 3.6 No hardcoded secrets
+Never commit secrets.
+Use `.env.example` and environment-variable driven configuration.
+
+## 3.7 No fake production claims
+Do not describe something as production-ready unless the implementation really supports that claim.
+
+Be honest about what is a bootstrap, demo, local-only feature, or future placeholder.
+
+---
+
+## 4. Primary Development Strategy
+
+When asked to build or change something, follow this order:
+
+1. understand the request
+2. map it to the final architecture
+3. determine the smallest viable implementation
+4. implement it in a way that does not block future growth
+5. explain how to run and verify it
+6. identify the next clean step
+
+If a request is too large, do **not** try to build everything at once.
+
+Instead, reduce it to the next meaningful vertical slice.
+
+---
+
+## 5. Required Response Pattern
+
+For code-related tasks, structure your response around these sections whenever practical:
+
+## 5.1 Goal
+What is being added or changed.
+
+## 5.2 Why this step
+Why this is the correct next step in the repo's evolution.
+
+## 5.3 Files to create or edit
+List the exact files.
+
+## 5.4 Implementation
+Show the code or diff.
+
+## 5.5 How to run
+Give exact commands for the user to run locally.
+
+## 5.6 How to verify
+Explain what success looks like.
+
+## 5.7 What remains later
+Briefly note future follow-up work without overbuilding now.
+
+Do not bury the run commands.
+
+---
+
+## 6. Architecture Awareness
+
+## 6.1 Respect the three-domain split
+Keep the repo aligned to:
+
+- Document Intelligence
+- Applied AI
+- Full-Stack Product
+
+When writing or refactoring code, keep these boundaries visible.
+
+## 6.2 Prefer layered responsibilities
+Default responsibility split:
+
+- **web**: UI and interaction
+- **bff**: product gateway and request shaping
+- **py-api**: business/API logic for document and AI workflows
+- **workers**: long-running asynchronous jobs
+- **py/libs**: shared Python domain logic
+- **packages**: shared TypeScript logic/components
+
+## 6.3 Build toward future scale, but do not prematurely optimize
+It is acceptable for the first version to be simple.
+It is not acceptable for the first version to make future scaling impossible.
+
+Good example:
+- start with local filesystem or simple object storage adapter
+- keep storage behind an interface that can later point to S3
+
+Bad example:
+- hardcode absolute local paths deep into business logic
+
+---
+
+## 7. Rules for Document Intelligence Code
+
+When building document pipelines:
+
+1. prefer explicit parsed structures over raw ad hoc dictionaries
+2. keep source provenance
+3. maintain page/chunk identifiers
+4. separate raw extraction, normalization, and final structured output
+5. design for both native-text PDFs and future OCR fallback
+6. do not assume all PDFs are clean or short
+7. keep chunking deterministic and inspectable
+8. store enough metadata for retrieval and evidence display later
+
+Every document processing step should make debugging easier, not harder.
+
+---
+
+## 8. Rules for Applied AI / LLM Code
+
+## 8.1 Evidence-backed outputs by default
+If the model generates a summary, answer, or analysis, the implementation should prefer returning:
+
+- structured output
+- cited or referenced evidence chunk IDs
+- validation metadata where possible
+
+## 8.2 Strict schema outputs
+Use explicit schemas for AI outputs.
+Do not rely on loose free-form text if a structured response is intended.
+
+## 8.3 Separate deterministic and open-ended tasks
+Treat these as different classes of problems:
+
+- deterministic extraction
+- narrative generation / summarization
+
+Do not use one evaluation method for both.
+
+## 8.4 Keep provider calls behind an adapter
+Model/provider-specific logic should be isolated so the repo can evolve without widespread rewrites.
+
+## 8.5 Simple prompt registry, not prompt chaos
+Prompts should live in predictable locations with metadata and example inputs/outputs when practical.
+
+## 8.6 Honest evaluation mindset
+For AI features, think in terms of:
+
+- correctness
+- grounding
+- evidence support
+- latency
+- robustness to bad input
+- fallback behavior
+- reviewability
+
+---
+
+## 9. Rules for Full-Stack Code
+
+## 9.1 Preserve the debug chain
+The repo should make it easy to trace:
+
+`UI -> handler -> state/store -> API call -> server logic -> response parser -> render`
+
+Do not create opaque flows that are hard to inspect.
+
+## 9.2 Typed contracts across the boundary
+Frontend and backend should share or mirror clear types/schemas.
+
+## 9.3 Streaming and cancellation matter
+If a feature involves streaming responses, design with future support for:
+
+- cancel/abort
+- partial rendering
+- state reset
+- clear error reporting
+
+## 9.4 Prefer readable state management
+Choose the simplest state solution that keeps UI behavior explicit and debuggable.
+
+---
+
+## 10. Manual Deployment and Learning Rules
+
+This project is meant to be manually deployable and educational.
+
+Therefore:
+
+- always give commands the user can run
+- explain expected environment variables
+- explain which service should start first
+- explain how services connect
+- explain how to test the running system
+
+When there is a setup choice, prefer the one that helps the user understand the architecture.
+
+Example:
+- prefer Docker Compose plus explicit commands over hidden scripts that obscure the system
+
+---
+
+## 11. Testing Rules
+
+Every meaningful addition should include at least one of the following, depending on scope:
+
+- unit test
+- smoke test
+- API contract test
+- end-to-end test
+- fixture-based parsing test
+
+Minimum standard:
+- the current slice should have at least one executable verification path
+
+Do not add large features with zero verification.
+
+---
+
+## 12. Dependency Rules
+
+Before adding a dependency, ask:
+
+1. does the current stack already solve this?
+2. is this dependency aligned with the final architecture?
+3. is it necessary for the next runnable slice?
+4. will it increase setup/debug burden?
+
+If the dependency is not clearly justified, do not add it.
+
+---
+
+## 13. Refactor Rules
+
+Refactor only when one of the following is true:
+
+- the current code blocks the next clean step
+- the boundary is clearly wrong
+- readability/debuggability is suffering
+- duplicated logic is already causing errors
+
+Do not refactor for style alone while the vertical slice is incomplete.
+
+---
+
+## 14. Communication Rules
+
+When explaining code or architecture:
+
+- be direct
+- be precise
+- be implementation-aware
+- avoid vague hype
+- explain tradeoffs
+- explain what is current reality vs future direction
+
+Good explanation:
+- "We are keeping OCR as a future adapter because the first slice uses native-text PDFs only."
+
+Bad explanation:
+- "This is enterprise-ready and scalable" when it is still a local demo.
+
+---
+
+## 15. What to Prioritize First in This Repo
+
+Unless the user explicitly asks otherwise, prefer this build order:
+
+1. repo bootstrap and environment sanity
+2. minimal FastAPI service
+3. minimal Next.js UI
+4. upload + parse endpoint
+5. chunking and structured response
+6. one AI task with strict JSON output
+7. evidence display in UI
+8. local Docker Compose
+9. smoke tests
+10. then evaluation/HITL/workerization improvements
+
+---
+
+## 16. What to Avoid Early
+
+Avoid these too early unless the user explicitly requests them:
+
+- advanced auth
+- microservice explosion
+- Kubernetes-first setup
+- many background workers before one vertical slice works
+- over-engineered prompt frameworks
+- multiple database technologies without clear need
+- deep cloud automation
+- fancy abstractions without a real current use case
+
+---
+
+## 17. Definition of Good Work in This Repo
+
+A good change in this repository has these properties:
+
+- it is aligned with `FINAL_ARCHITECTURE.md`
+- it improves the runnable vertical slice
+- it is understandable by the user
+- it is manually testable
+- it preserves future growth paths
+- it does not hide complexity behind magic
+- it uses clear interfaces and schemas
+- it makes debugging easier
+
+---
+
+## 18. Final Instruction
+
+Always optimize for this combination:
+
+- **small runnable step now**
+- **clean architecture later**
+- **manual deployment clarity**
+- **interview realism**
+- **evidence-backed AI behavior**
+- **honest engineering tradeoffs**
