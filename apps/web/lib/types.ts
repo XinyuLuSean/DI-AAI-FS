@@ -113,10 +113,14 @@ export interface EvidenceReference {
   page_numbers: number[];
 }
 
+export type ExtractionMethod = "regex" | "keyword_window" | "llm" | "manual";
+
 export interface StructuredField {
   field_name: string;
   field_value: string;
   confidence: number;
+  extraction_method: ExtractionMethod | string;
+  source_snippet: string;
   evidence: EvidenceReference[];
 }
 

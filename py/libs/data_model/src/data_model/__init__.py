@@ -14,6 +14,7 @@ from data_model.document import (
 )
 from data_model.extraction import (
     EvidenceReference,
+    ExtractionMethod,
     ExtractionResult,
     StructuredField,
     SummaryResult,
@@ -29,6 +30,7 @@ __all__ = [
     "DocumentStatus",
     "DocumentType",
     "EvidenceReference",
+    "ExtractionMethod",
     "ExtractionResult",
     "ParseFailureReason",
     "ParseMeta",

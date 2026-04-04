@@ -53,26 +53,38 @@ export function ExtractionResult({ result }: Props) {
           <h3 className="mb-3 text-lg font-semibold">Extracted Fields</h3>
           <div className="divide-y divide-gray-100">
             {result.structured_fields.map((field, i) => (
-              <div key={i} className="flex items-center justify-between py-3">
-                <div>
-                  <span className="text-sm font-medium text-gray-900">
-                    {field.field_name}
-                  </span>
-                  <span className="ml-3 text-sm text-gray-600">
-                    {field.field_value}
+              <div key={i} className="py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900">
+                      {field.field_name}
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      {field.field_value}
+                    </span>
+                    {field.extraction_method && (
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-mono text-gray-500">
+                        {field.extraction_method}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      field.confidence >= 0.8
+                        ? "bg-emerald-100 text-emerald-700"
+                        : field.confidence >= 0.5
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {(field.confidence * 100).toFixed(0)}%
                   </span>
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    field.confidence >= 0.8
-                      ? "bg-emerald-100 text-emerald-700"
-                      : field.confidence >= 0.5
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {(field.confidence * 100).toFixed(0)}%
-                </span>
+                {field.source_snippet && (
+                  <p className="mt-1 text-xs text-gray-400 line-clamp-2">
+                    {field.source_snippet}
+                  </p>
+                )}
               </div>
             ))}
           </div>

@@ -1,9 +1,10 @@
-"""Document API — upload, status, extraction, chunk inspection.
+"""Document API — upload, extraction, summarisation, inspection.
 
 Endpoints:
   POST /documents/upload                      — accept a file, parse, chunk, store
   GET  /documents/{id}                        — retrieve document metadata + chunks
-  POST /documents/{id}/summarise              — run AI summarisation
+  POST /documents/{id}/extract                — deterministic field extraction (no LLM)
+  POST /documents/{id}/summarise              — LLM-based summarisation
   GET  /documents/{id}/chunks/debug           — chunk inspection for debugging
   GET  /documents/{id}/extractions/{ext_id}   — retrieve extraction result
 """
@@ -16,7 +17,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query, UploadFile
 
 from data_model import ChunkStrategy, Document, DocumentSource, DocumentStatus, ExtractionResult
-from di_core import ChunkConfig, chunk_text, parse_document, route_document
+from di_core import ChunkConfig, chunk_text, extract_fields, parse_document, route_document
 from storage import LocalStorage
 
 from py_api.core.config import get_settings
@@ -167,9 +168,39 @@ async def debug_chunks(document_id: str) -> dict[str, Any]:
     }
 
 
+@router.post("/{document_id}/extract")
+async def extract(document_id: str) -> ExtractionResult:
+    """Run deterministic field extraction (regex/heuristic — no LLM)."""
+    doc = _documents.get(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.pages:
+        raise HTTPException(status_code=422, detail="Document has no pages")
+
+    result = extract_fields(doc)
+    _extractions[result.id] = result
+
+    logger.info(
+        "document.extracted",
+        doc_id=document_id,
+        fields=len(result.structured_fields),
+        time_ms=result.processing_time_ms,
+        field_names=[f.field_name for f in result.structured_fields],
+    )
+    return result
+
+
 @router.post("/{document_id}/summarise")
-async def summarise(document_id: str) -> ExtractionResult:
-    """Run AI summarisation on a previously uploaded document."""
+async def summarise(
+    document_id: str,
+    extraction_id: str | None = Query(default=None),
+) -> ExtractionResult:
+    """Run AI summarisation on a previously uploaded document.
+
+    When extraction_id is provided, the prior deterministic extraction's fields
+    are injected into the LLM prompt as grounding constraints so the summary
+    stays consistent with known facts.
+    """
     doc = _documents.get(document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -178,7 +209,19 @@ async def summarise(document_id: str) -> ExtractionResult:
 
     from ai_core import summarise_document
 
-    result = summarise_document(doc)
+    grounding_fields = None
+    if extraction_id:
+        prior = _extractions.get(extraction_id)
+        if prior and prior.document_id == document_id:
+            grounding_fields = prior.structured_fields
+            logger.info(
+                "document.summarise_grounded",
+                doc_id=document_id,
+                extraction_id=extraction_id,
+                grounding_fields=len(grounding_fields),
+            )
+
+    result = summarise_document(doc, grounding_fields=grounding_fields)
     _extractions[result.id] = result
 
     logger.info(
@@ -186,6 +229,7 @@ async def summarise(document_id: str) -> ExtractionResult:
         doc_id=document_id,
         model=result.model_used,
         time_ms=result.processing_time_ms,
+        grounded=grounding_fields is not None,
     )
     return result
 
