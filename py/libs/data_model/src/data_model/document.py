@@ -24,6 +24,35 @@ class DocumentStatus(StrEnum):
     FAILED = "failed"
 
 
+class ParseFailureReason(StrEnum):
+    """Classifiable failure categories for parser triage and monitoring."""
+
+    NONE = "none"
+    UNSUPPORTED_FILE_TYPE = "unsupported_file_type"
+    FILE_NOT_FOUND = "file_not_found"
+    EMPTY_EXTRACTION = "empty_extraction"
+    UNREADABLE_PDF = "unreadable_pdf"
+    ZERO_TEXT_PDF = "zero_text_pdf"
+
+
+class ParseMeta(BaseModel):
+    """Observability metadata produced by the parser.
+
+    Carried on the Document so downstream stages (chunker, summariser,
+    evaluation) can make quality-aware decisions without re-inspecting
+    raw pages.
+    """
+
+    parse_strategy: str = ""
+    file_suffix: str = ""
+    page_count: int = 0
+    empty_page_count: int = 0
+    total_chars: int = 0
+    text_density: float = 0.0
+    failure_reason: ParseFailureReason = ParseFailureReason.NONE
+    warnings: list[str] = Field(default_factory=list)
+
+
 class DocumentSource(BaseModel):
     """Where the raw file lives."""
 
@@ -42,6 +71,33 @@ class DocumentPage(BaseModel):
     char_count: int = 0
 
 
+class ChunkStrategy(StrEnum):
+    """Available chunking strategies."""
+
+    FIXED_SIZE = "fixed_size"
+    PARAGRAPH = "paragraph"
+    PAGE_BOUNDED = "page_bounded"
+
+
+class ChunkMeta(BaseModel):
+    """Observability metadata for one chunking run.
+
+    Carried on the Document so downstream stages (summariser, evaluation,
+    debug tooling) can inspect chunking behaviour without re-running.
+    """
+
+    strategy: ChunkStrategy = ChunkStrategy.PARAGRAPH
+    chunk_size: int = 0
+    overlap: int = 0
+    chunk_count: int = 0
+    avg_chunk_chars: float = 0.0
+    total_chars_chunked: int = 0
+    max_chunks_limit: int | None = None
+    is_truncated: bool = False
+    page_coverage: list[int] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class DocumentChunk(BaseModel):
     """A retrieval-ready text chunk with provenance metadata."""
 
@@ -49,10 +105,12 @@ class DocumentChunk(BaseModel):
     document_id: str
     index: int
     text: str
+    strategy: str = ""
     page_numbers: list[int] = Field(default_factory=list)
     char_start: int = 0
     char_end: int = 0
     token_estimate: int = 0
+    is_truncated: bool = False
 
 
 class Document(BaseModel):
@@ -63,6 +121,8 @@ class Document(BaseModel):
     content_type: str = "application/pdf"
     status: DocumentStatus = DocumentStatus.PENDING
     source: DocumentSource | None = None
+    parse_meta: ParseMeta | None = None
+    chunk_meta: ChunkMeta | None = None
     pages: list[DocumentPage] = Field(default_factory=list)
     chunks: list[DocumentChunk] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -9,6 +9,8 @@ interface Props {
 
 export function DocumentViewer({ document: doc }: Props) {
   const [showChunks, setShowChunks] = useState(false);
+  const parseMeta = doc.parse_meta;
+  const chunkMeta = doc.chunk_meta;
 
   return (
     <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-6">
@@ -36,6 +38,61 @@ export function DocumentViewer({ document: doc }: Props) {
         <div className="text-xs text-gray-400">
           Size: {(doc.source.size_bytes / 1024).toFixed(1)} KB | Type:{" "}
           {doc.source.content_type} | ID: {doc.id.slice(0, 12)}…
+        </div>
+      )}
+
+      {/* Parse metadata */}
+      {parseMeta && (
+        <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-xs">
+          <h4 className="mb-2 text-sm font-medium text-gray-600">
+            Parse Info
+          </h4>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-gray-500">
+            <span>Strategy: <span className="font-mono text-gray-700">{parseMeta.parse_strategy}</span></span>
+            <span>Suffix: <span className="font-mono text-gray-700">{parseMeta.file_suffix}</span></span>
+            <span>Chars: <span className="font-medium text-gray-700">{parseMeta.total_chars.toLocaleString()}</span></span>
+            <span>Density: <span className="font-medium text-gray-700">{parseMeta.text_density.toFixed(1)} chars/page</span></span>
+            {parseMeta.empty_page_count > 0 && (
+              <span className="text-amber-600">
+                Empty pages: {parseMeta.empty_page_count}/{parseMeta.page_count}
+              </span>
+            )}
+          </div>
+          {parseMeta.warnings.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {parseMeta.warnings.map((w, i) => (
+                <p key={i} className="text-amber-600">⚠ {w}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Chunk metadata */}
+      {chunkMeta && (
+        <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-xs">
+          <h4 className="mb-2 text-sm font-medium text-gray-600">
+            Chunk Info
+          </h4>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-gray-500">
+            <span>Strategy: <span className="font-mono text-gray-700">{chunkMeta.strategy}</span></span>
+            <span>Size/Overlap: <span className="font-medium text-gray-700">{chunkMeta.chunk_size}/{chunkMeta.overlap}</span></span>
+            <span>Count: <span className="font-medium text-gray-700">{chunkMeta.chunk_count}</span></span>
+            <span>Avg chars: <span className="font-medium text-gray-700">{chunkMeta.avg_chunk_chars.toFixed(0)}</span></span>
+            <span>Pages covered: <span className="font-medium text-gray-700">{chunkMeta.page_coverage.length}/{doc.pages.length}</span></span>
+            {chunkMeta.is_truncated && (
+              <span className="font-medium text-amber-600">
+                Truncated at {chunkMeta.max_chunks_limit} chunks
+              </span>
+            )}
+          </div>
+          {chunkMeta.warnings.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {chunkMeta.warnings.map((w, i) => (
+                <p key={i} className="text-amber-600">⚠ {w}</p>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

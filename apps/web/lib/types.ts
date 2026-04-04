@@ -6,6 +6,25 @@
  * will auto-generate these.
  */
 
+export type ParseFailureReason =
+  | "none"
+  | "unsupported_file_type"
+  | "file_not_found"
+  | "empty_extraction"
+  | "unreadable_pdf"
+  | "zero_text_pdf";
+
+export interface ParseMeta {
+  parse_strategy: string;
+  file_suffix: string;
+  page_count: number;
+  empty_page_count: number;
+  total_chars: number;
+  text_density: number;
+  failure_reason: ParseFailureReason;
+  warnings: string[];
+}
+
 export interface DocumentSource {
   storage_backend: string;
   path: string;
@@ -20,15 +39,32 @@ export interface DocumentPage {
   char_count: number;
 }
 
+export type ChunkStrategy = "fixed_size" | "paragraph" | "page_bounded";
+
+export interface ChunkMeta {
+  strategy: ChunkStrategy;
+  chunk_size: number;
+  overlap: number;
+  chunk_count: number;
+  avg_chunk_chars: number;
+  total_chars_chunked: number;
+  max_chunks_limit: number | null;
+  is_truncated: boolean;
+  page_coverage: number[];
+  warnings: string[];
+}
+
 export interface DocumentChunk {
   chunk_id: string;
   document_id: string;
   index: number;
   text: string;
+  strategy: string;
   page_numbers: number[];
   char_start: number;
   char_end: number;
   token_estimate: number;
+  is_truncated: boolean;
 }
 
 export interface DocumentResponse {
@@ -37,6 +73,8 @@ export interface DocumentResponse {
   content_type: string;
   status: string;
   source: DocumentSource | null;
+  parse_meta: ParseMeta | null;
+  chunk_meta: ChunkMeta | null;
   pages: DocumentPage[];
   chunks: DocumentChunk[];
   created_at: string;
