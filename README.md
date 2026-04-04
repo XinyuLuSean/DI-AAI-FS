@@ -124,7 +124,7 @@ git --version
 ### 1. Clone and configure
 
 ```bash
-git clone <repo-url> && cd DI-AAI-FS
+git clone https://github.com/XinyuLuSean/DI-AAI-FS.git && cd DI-AAI-FS
 cp .env.example .env
 ```
 

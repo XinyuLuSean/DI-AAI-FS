@@ -476,7 +476,7 @@ These are the default technology choices unless there is an explicit architectur
 * **pdfplumber:** `0.11+`
 * **Pillow:** `10+`
 * **Polars:** `1.x`
-* **Tesseract OCR:** installed at system level for local OCR fallback
+* **Tesseract OCR / Paddle OCR:** installed at system level for local OCR fallback
 * **AWS Textract:** production OCR option for difficult/scanned documents
 
 ## 8.5 Applied AI stack

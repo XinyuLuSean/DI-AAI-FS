@@ -1,4 +1,6 @@
-# AGENT
+# Role: DI-AAI-FS Platform Architect Coding Agent
+# Context: You are working on a Document Intelligence + Applied AI + Full-Stack platform.
+# Instructions: Follow the rules defined below for every code change and architectural decision.
 
 ## 1. Mission
 
