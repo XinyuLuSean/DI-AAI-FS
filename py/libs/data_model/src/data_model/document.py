@@ -53,6 +53,40 @@ class ParseMeta(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class DocumentType(StrEnum):
+    """High-level document category for routing downstream strategies."""
+
+    UNKNOWN = "unknown"
+    LEGAL = "legal"
+    MEDICAL = "medical"
+    BILLING = "billing"
+    TREATMENT = "treatment"
+    CORRESPONDENCE = "correspondence"
+
+
+class RoutingRule(BaseModel):
+    """One heuristic that contributed to a routing decision."""
+
+    source: str
+    pattern: str
+    matched_type: DocumentType
+    weight: float = 1.0
+
+
+class RoutingResult(BaseModel):
+    """Explainable routing prediction for a document.
+
+    Every routing decision records *why* a type was chosen so that debugging,
+    evaluation, and HITL review can inspect and override the prediction.
+    """
+
+    predicted_type: DocumentType = DocumentType.UNKNOWN
+    confidence: float = 0.0
+    matched_rules: list[RoutingRule] = Field(default_factory=list)
+    is_fallback: bool = True
+    warnings: list[str] = Field(default_factory=list)
+
+
 class DocumentSource(BaseModel):
     """Where the raw file lives."""
 
@@ -86,7 +120,7 @@ class ChunkMeta(BaseModel):
     debug tooling) can inspect chunking behaviour without re-running.
     """
 
-    strategy: ChunkStrategy = ChunkStrategy.PARAGRAPH
+    strategy: ChunkStrategy = ChunkStrategy.FIXED_SIZE
     chunk_size: int = 0
     overlap: int = 0
     chunk_count: int = 0
@@ -122,6 +156,7 @@ class Document(BaseModel):
     status: DocumentStatus = DocumentStatus.PENDING
     source: DocumentSource | None = None
     parse_meta: ParseMeta | None = None
+    routing: RoutingResult | None = None
     chunk_meta: ChunkMeta | None = None
     pages: list[DocumentPage] = Field(default_factory=list)
     chunks: list[DocumentChunk] = Field(default_factory=list)

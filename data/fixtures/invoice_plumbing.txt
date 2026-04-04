@@ -1,0 +1,39 @@
+INVOICE
+
+Springfield Plumbing & Restoration LLC
+742 Main Street, Springfield, IL 62701
+Phone: (217) 555-0198
+
+BILL TO:
+Jane Doe
+742 Evergreen Terrace
+Springfield, IL 62704
+
+Invoice Number: INV-2024-0283
+Invoice Date: February 10, 2024
+Due Date: March 10, 2024
+
+DESCRIPTION OF SERVICES
+
+Emergency water extraction and pipe repair following frozen pipe burst
+at residential property.
+
+LINE ITEMS
+
+1. Emergency callout fee                          $   350.00
+2. Water extraction — kitchen and hallway         $ 2,100.00
+3. Pipe replacement — copper 3/4" exterior wall   $ 1,450.00
+4. Drywall repair — kitchen (12 sq ft)            $   680.00
+5. Baseboard replacement — living room            $   420.00
+6. Materials and supplies                         $   890.00
+
+                                    Subtotal:     $ 5,890.00
+                                    Tax (6.25%):  $   368.13
+                                    TOTAL DUE:    $ 6,258.13
+
+PAYMENT TERMS
+
+Payment due within 30 days.  Please remit to the address above or
+pay online at springfieldplumbing.com/pay.
+
+Account Number: ACCT-DOE-2024

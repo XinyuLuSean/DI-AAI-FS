@@ -16,7 +16,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query, UploadFile
 
 from data_model import ChunkStrategy, Document, DocumentSource, DocumentStatus, ExtractionResult
-from di_core import ChunkConfig, chunk_text, parse_document
+from di_core import ChunkConfig, chunk_text, parse_document, route_document
 from storage import LocalStorage
 
 from py_api.core.config import get_settings
@@ -36,7 +36,7 @@ def _get_storage() -> LocalStorage:
 @router.post("/upload")
 async def upload_document(
     file: UploadFile,
-    chunk_strategy: ChunkStrategy = Query(default=ChunkStrategy.PARAGRAPH),
+    chunk_strategy: ChunkStrategy = Query(default=ChunkStrategy.FIXED_SIZE),
     chunk_size: int = Query(default=800, ge=100, le=8000),
     chunk_overlap: int = Query(default=200, ge=0),
     max_chunks: int | None = Query(default=None, ge=1),
@@ -92,6 +92,17 @@ async def upload_document(
                 "failure_reason": failure_reason,
             },
         )
+
+    doc.routing = route_document(doc)
+    logger.info(
+        "document.routed",
+        doc_id=doc.id,
+        predicted_type=doc.routing.predicted_type.value,
+        confidence=doc.routing.confidence,
+        rules=len(doc.routing.matched_rules),
+        is_fallback=doc.routing.is_fallback,
+        warnings=doc.routing.warnings,
+    )
 
     chunk_cfg = ChunkConfig(
         strategy=chunk_strategy,

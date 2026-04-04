@@ -1,0 +1,44 @@
+PATIENT MEDICAL RECORD
+
+Patient Name: Robert Thompson
+Date of Birth: 03/15/1978
+MRN: MED-2024-5567
+Physician: Dr. Sarah Williams, MD
+
+CHIEF COMPLAINT
+
+Patient presents with persistent lower back pain following a workplace
+injury on December 10, 2023.  Pain radiates to the left leg.
+
+DIAGNOSIS
+
+1. Lumbar disc herniation L4-L5
+2. Radiculopathy, left lower extremity
+3. Chronic pain syndrome
+
+MEDICATIONS
+
+- Ibuprofen 800mg TID
+- Gabapentin 300mg BID
+- Cyclobenzaprine 10mg at bedtime
+
+VITAL SIGNS
+
+BP: 128/82  HR: 76  Temp: 98.6F  SpO2: 98%
+
+CLINICAL NOTES
+
+MRI dated January 8, 2024 confirms moderate disc herniation at L4-L5
+with mild neural foraminal narrowing.  The patient reports pain intensity
+of 7/10.  Physical therapy has provided marginal improvement over the
+past 6 weeks.
+
+PLAN
+
+1. Continue current medication regimen
+2. Refer to pain management for epidural steroid injection
+3. Follow-up in 4 weeks
+4. If no improvement, consider surgical consultation
+
+Attending Physician: Dr. Sarah Williams
+Date: February 15, 2024

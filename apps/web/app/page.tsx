@@ -24,30 +24,32 @@ export default function Home() {
   return (
     <div className="space-y-8">
       {/* Step 1: Upload */}
-      <section>
-        <h2 className="mb-4 text-xl font-semibold">1. Upload a Document</h2>
-        <UploadPanel
-          onUploaded={(doc) => {
-            setDocument(doc);
-            setExtraction(null);
-            setError(null);
-          }}
-          onError={setError}
-          disabled={loading}
-        />
-      </section>
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+      {document === null && (
+        <section>
+          <h2 className="mb-4 text-xl font-semibold">Upload a Document</h2>
+          <UploadPanel
+            onUploaded={(doc) => {
+              setDocument(doc);
+              setExtraction(null);
+              setError(null);
+            }}
+            onError={setError}
+            disabled={loading}
+          />
+        </section>
       )}
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
       {/* Step 2: Document info + chunks */}
       {document && (
         <section>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">2. Parsed Document</h2>
+            <h2 className="text-xl font-semibold">Parsed Document</h2>
             <button
               onClick={handleReset}
               className="text-sm text-gray-500 underline hover:text-gray-700"
@@ -63,7 +65,7 @@ export default function Home() {
       {document && !extraction && (
         <section>
           <h2 className="mb-4 text-xl font-semibold">
-            3. Run AI Summarisation
+            Run AI Summarisation
           </h2>
           <button
             onClick={async () => {
@@ -91,7 +93,7 @@ export default function Home() {
       {extraction && (
         <section>
           <h2 className="mb-4 text-xl font-semibold">
-            4. Extraction Results
+            Extraction Results
           </h2>
           <ExtractionResult result={extraction} />
         </section>

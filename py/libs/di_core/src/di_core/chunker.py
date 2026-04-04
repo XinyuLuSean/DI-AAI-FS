@@ -31,7 +31,7 @@ DEFAULT_OVERLAP = 200
 class ChunkConfig(BaseModel):
     """Chunking parameters — passed from the API layer."""
 
-    strategy: ChunkStrategy = ChunkStrategy.PARAGRAPH
+    strategy: ChunkStrategy = ChunkStrategy.FIXED_SIZE
     chunk_size: int = DEFAULT_CHUNK_SIZE
     overlap: int = DEFAULT_OVERLAP
     max_chunks: int | None = None

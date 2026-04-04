@@ -7,9 +7,23 @@ interface Props {
   document: DocumentResponse;
 }
 
+const CONFIDENCE_COLORS: Record<string, string> = {
+  high: "bg-emerald-100 text-emerald-700",
+  medium: "bg-yellow-100 text-yellow-700",
+  low: "bg-red-100 text-red-700",
+};
+
+function confidenceBand(c: number) {
+  if (c >= 0.7) return "high";
+  if (c >= 0.4) return "medium";
+  return "low";
+}
+
 export function DocumentViewer({ document: doc }: Props) {
   const [showChunks, setShowChunks] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const parseMeta = doc.parse_meta;
+  const routing = doc.routing;
   const chunkMeta = doc.chunk_meta;
 
   return (
@@ -61,6 +75,64 @@ export function DocumentViewer({ document: doc }: Props) {
           {parseMeta.warnings.length > 0 && (
             <div className="mt-2 space-y-1">
               {parseMeta.warnings.map((w, i) => (
+                <p key={i} className="text-amber-600">⚠ {w}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Routing result */}
+      {routing && (
+        <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-xs">
+          <h4 className="mb-2 text-sm font-medium text-gray-600">
+            Document Routing
+          </h4>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-gray-500">
+            <span>
+              Type:{" "}
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 font-medium text-indigo-700">
+                {routing.predicted_type}
+              </span>
+            </span>
+            <span>
+              Confidence:{" "}
+              <span className={`rounded-full px-2 py-0.5 font-medium ${CONFIDENCE_COLORS[confidenceBand(routing.confidence)]}`}>
+                {(routing.confidence * 100).toFixed(0)}%
+              </span>
+            </span>
+            {routing.is_fallback && (
+              <span className="text-amber-600">Fallback (no rules matched)</span>
+            )}
+            <span>Rules: {routing.matched_rules.length}</span>
+          </div>
+          {routing.matched_rules.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => setShowRules(!showRules)}
+                className="text-xs font-medium text-blue-600 hover:underline"
+              >
+                {showRules ? "Hide rules" : "Show matched rules"}
+              </button>
+              {showRules && (
+                <div className="mt-2 space-y-1">
+                  {routing.matched_rules.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 text-gray-500">
+                      <span className="rounded bg-gray-200 px-1.5 py-0.5 font-mono text-gray-600">
+                        {r.source}
+                      </span>
+                      <span className="truncate">{r.pattern}</span>
+                      <span className="text-gray-400">→ {r.matched_type}</span>
+                      <span className="text-gray-400">w={r.weight.toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {routing.warnings.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {routing.warnings.map((w, i) => (
                 <p key={i} className="text-amber-600">⚠ {w}</p>
               ))}
             </div>

@@ -25,6 +25,29 @@ export interface ParseMeta {
   warnings: string[];
 }
 
+export type DocumentType =
+  | "unknown"
+  | "legal"
+  | "medical"
+  | "billing"
+  | "treatment"
+  | "correspondence";
+
+export interface RoutingRule {
+  source: string;
+  pattern: string;
+  matched_type: DocumentType;
+  weight: number;
+}
+
+export interface RoutingResult {
+  predicted_type: DocumentType;
+  confidence: number;
+  matched_rules: RoutingRule[];
+  is_fallback: boolean;
+  warnings: string[];
+}
+
 export interface DocumentSource {
   storage_backend: string;
   path: string;
@@ -74,6 +97,7 @@ export interface DocumentResponse {
   status: string;
   source: DocumentSource | null;
   parse_meta: ParseMeta | null;
+  routing: RoutingResult | null;
   chunk_meta: ChunkMeta | null;
   pages: DocumentPage[];
   chunks: DocumentChunk[];

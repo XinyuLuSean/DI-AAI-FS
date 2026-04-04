@@ -6,8 +6,11 @@ from data_model.document import (
     DocumentPage,
     DocumentSource,
     DocumentStatus,
+    DocumentType,
     ParseFailureReason,
     ParseMeta,
+    RoutingResult,
+    RoutingRule,
 )
 from data_model.extraction import (
     EvidenceReference,
@@ -24,10 +27,13 @@ __all__ = [
     "DocumentPage",
     "DocumentSource",
     "DocumentStatus",
+    "DocumentType",
     "EvidenceReference",
     "ExtractionResult",
     "ParseFailureReason",
     "ParseMeta",
+    "RoutingResult",
+    "RoutingRule",
     "StructuredField",
     "SummaryResult",
 ]
