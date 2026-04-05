@@ -82,9 +82,7 @@ def postprocess_extraction(
         _clamp_confidence(field, meta)
         _dedup_evidence(field, meta)
 
-    if result.summary:
-        for field in (result.summary.evidence or []):
-            pass
+    if result.summary and result.summary.evidence:
         _dedup_evidence_list(result.summary.evidence, meta)
 
     return result, meta

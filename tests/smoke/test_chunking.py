@@ -81,10 +81,17 @@ class TestParagraphStrategy:
         for chunk in data["chunks"]:
             assert chunk["strategy"] == "paragraph"
 
-    def test_paragraph_produces_different_count(self) -> None:
+    def test_paragraph_produces_different_boundaries(self) -> None:
+        """Paragraph strategy should produce chunks with different sizes or count than fixed."""
         fixed = _upload(self.client, chunk_strategy="fixed_size")
         para = _upload(self.client, chunk_strategy="paragraph")
-        assert fixed["chunk_meta"]["chunk_count"] != para["chunk_meta"]["chunk_count"] or True
+        fixed_count = fixed["chunk_meta"]["chunk_count"]
+        para_count = para["chunk_meta"]["chunk_count"]
+        fixed_avg = fixed["chunk_meta"]["avg_chunk_chars"]
+        para_avg = para["chunk_meta"]["avg_chunk_chars"]
+        assert fixed_count != para_count or abs(fixed_avg - para_avg) > 1, (
+            "Paragraph strategy should differ from fixed_size in count or avg size"
+        )
 
 
 class TestPageBoundedStrategy:

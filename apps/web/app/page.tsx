@@ -51,8 +51,8 @@ export default function Home() {
       setDocsLoading(true);
       const docs: DocumentListItem[] = await fetchDocuments();
       setDocuments(docs);
-    } catch {
-      /* silently fail on initial load */
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load documents");
     } finally {
       setDocsLoading(false);
     }
@@ -94,8 +94,12 @@ export default function Home() {
 
   const refreshExtractions = async () => {
     if (!selectedDocId) return;
-    const exts: ExtractionListItem[] = await fetchDocumentExtractions(selectedDocId);
-    setExtractions(exts);
+    try {
+      const exts: ExtractionListItem[] = await fetchDocumentExtractions(selectedDocId);
+      setExtractions(exts);
+    } catch {
+      /* non-critical refresh — extraction results still visible */
+    }
   };
 
   const handleUploaded = async (doc: DocumentResponse) => {

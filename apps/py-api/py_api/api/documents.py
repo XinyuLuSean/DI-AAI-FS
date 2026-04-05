@@ -25,6 +25,8 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile
 
 from pydantic import BaseModel, Field
 
+from datetime import UTC, datetime
+
 from data_model import (
     ChunkSelectionStrategy,
     ChunkStrategy,
@@ -35,7 +37,6 @@ from data_model import (
     EvidenceReference,
     ExtractionResult,
     FeedbackSignal,
-    ParseQuality,
     PipelineStage,
     PipelineTrace,
     ReviewableOutput,
@@ -73,6 +74,23 @@ _extractions: dict[str, ExtractionResult] = {}
 _reviewables: dict[str, ReviewableOutput] = {}  # keyed by extraction_id
 _corrections: dict[str, CorrectionRecord] = {}  # keyed by correction_id
 _feedback: list[FeedbackSignal] = []
+
+
+def _ensure_reviewable(extraction_id: str) -> ReviewableOutput:
+    """Get or create a ReviewableOutput for an extraction, using document context."""
+    if extraction_id in _reviewables:
+        return _reviewables[extraction_id]
+    result = _extractions[extraction_id]
+    doc = _documents.get(result.document_id)
+    parse_quality = doc.parse_meta.quality if doc and doc.parse_meta else None
+    routing_confidence = doc.routing.confidence if doc and doc.routing else None
+    reviewable = create_reviewable_output(
+        result,
+        parse_quality=parse_quality,
+        routing_confidence=routing_confidence,
+    )
+    _reviewables[extraction_id] = reviewable
+    return reviewable
 
 
 # ── Request / response models ─────────────────────────────────────────────
@@ -332,10 +350,11 @@ async def list_documents() -> list[DocumentListItem]:
 
 @router.get("/review-queue", response_model=ReviewQueueResponse)
 async def get_review_queue() -> ReviewQueueResponse:
-    """List all items in the review queue, sorted by priority (highest first).
+    """List all reviewable items, sorted by priority (highest first).
 
-    Returns pending, in-review, and recently decided items.
-    Auto-accepted items are counted but not included in the main list.
+    Returns all items including auto-accepted ones.  The response includes
+    separate counts for pending and auto-accepted items so the UI can
+    filter or badge as needed.
     """
     all_items = list(_reviewables.values())
     pending = [r for r in all_items if r.status == ReviewStatus.PENDING_REVIEW]
@@ -446,15 +465,7 @@ async def extract(document_id: str) -> ExtractionResult:
     result, postprocess_meta = postprocess_extraction(result)
 
     _extractions[result.id] = result
-
-    parse_quality = doc.parse_meta.quality if doc.parse_meta else None
-    routing_confidence = doc.routing.confidence if doc.routing else None
-    reviewable = create_reviewable_output(
-        result,
-        parse_quality=parse_quality,
-        routing_confidence=routing_confidence,
-    )
-    _reviewables[result.id] = reviewable
+    reviewable = _ensure_reviewable(result.id)
 
     logger.info(
         "document.extracted",
@@ -561,15 +572,7 @@ async def summarise(
         grounding_fields=grounding_fields,
     )
     _extractions[result.id] = result
-
-    parse_quality = doc.parse_meta.quality if doc.parse_meta else None
-    routing_confidence = doc.routing.confidence if doc.routing else None
-    reviewable = create_reviewable_output(
-        result,
-        parse_quality=parse_quality,
-        routing_confidence=routing_confidence,
-    )
-    _reviewables[result.id] = reviewable
+    reviewable = _ensure_reviewable(result.id)
 
     sm = result.summarisation_meta
     logger.info(
@@ -614,23 +617,7 @@ async def submit_review(
     if result is None or result.document_id != document_id:
         raise HTTPException(status_code=404, detail="Extraction not found")
 
-    if extraction_id not in _reviewables:
-        doc = _documents.get(document_id)
-        parse_quality = None
-        routing_confidence = None
-        if doc and doc.parse_meta:
-            parse_quality = doc.parse_meta.quality
-        if doc and doc.routing:
-            routing_confidence = doc.routing.confidence
-
-        reviewable = create_reviewable_output(
-            result,
-            parse_quality=parse_quality,
-            routing_confidence=routing_confidence,
-        )
-        _reviewables[extraction_id] = reviewable
-
-    reviewable = _reviewables[extraction_id]
+    reviewable = _ensure_reviewable(extraction_id)
 
     decision = ReviewDecision(
         extraction_id=extraction_id,
@@ -641,6 +628,7 @@ async def submit_review(
     )
     reviewable.decisions.append(decision)
     reviewable.status = body.status
+    reviewable.updated_at = datetime.now(UTC)
 
     logger.info(
         "hitl.review_submitted",
@@ -669,23 +657,7 @@ async def get_review_status(
     if result is None or result.document_id != document_id:
         raise HTTPException(status_code=404, detail="Extraction not found")
 
-    if extraction_id not in _reviewables:
-        doc = _documents.get(document_id)
-        parse_quality = None
-        routing_confidence = None
-        if doc and doc.parse_meta:
-            parse_quality = doc.parse_meta.quality
-        if doc and doc.routing:
-            routing_confidence = doc.routing.confidence
-
-        reviewable = create_reviewable_output(
-            result,
-            parse_quality=parse_quality,
-            routing_confidence=routing_confidence,
-        )
-        _reviewables[extraction_id] = reviewable
-
-    return _reviewables[extraction_id]
+    return _ensure_reviewable(extraction_id)
 
 
 @router.post("/{document_id}/extractions/{extraction_id}/correct")

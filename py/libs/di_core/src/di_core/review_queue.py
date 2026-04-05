@@ -17,9 +17,7 @@ from __future__ import annotations
 
 from data_model import (
     ExtractionResult,
-    GroundingAudit,
     ParseQuality,
-    SummarisationMeta,
 )
 from data_model.review import (
     CorrectionRecord,

@@ -44,7 +44,7 @@ export default function RootLayout({
             </span>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+        <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
       </body>
     </html>
   );

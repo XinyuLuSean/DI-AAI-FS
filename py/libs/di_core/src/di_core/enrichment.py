@@ -15,7 +15,7 @@ Call enrich_chunks_for_retrieval() once after all prior pipeline stages
 
 from __future__ import annotations
 
-from data_model import Document, DocumentChunk, SectionLabel
+from data_model import Document
 
 from di_core.section_detector import detect_sections, section_label_for_chunk
 

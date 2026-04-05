@@ -19,8 +19,10 @@ export function UploadPanel({ onUploaded, onError, disabled }: Props) {
     setUploading(true);
     try {
       const doc = await uploadDocument(file);
+      if (inputRef.current) inputRef.current.value = "";
       onUploaded(doc);
     } catch (e: unknown) {
+      if (inputRef.current) inputRef.current.value = "";
       onError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(false);

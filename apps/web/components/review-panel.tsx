@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { submitCorrection, submitReview } from "@/lib/api";
 import type {
-  CorrectionResponse,
   EvidenceReference,
   ExtractionResponse,
   ReviewableOutput,
@@ -230,6 +229,7 @@ export function ReviewPanel({ reviewable, extraction, onReviewSubmitted }: Props
               fields={extraction.structured_fields}
               onSubmitted={() => {
                 setShowCorrection(false);
+                setError(null);
                 setSuccess("Corrections submitted");
                 onReviewSubmitted();
               }}

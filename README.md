@@ -1,16 +1,49 @@
 # DI-AAI-FS — Document Intelligence + Applied AI + Full-Stack
 
-A platform for document ingestion, structured extraction, and evidence-backed AI analysis.
+A platform for document ingestion, structured extraction, evidence-backed AI analysis, and human-in-the-loop review.
 
-**Current state:** MVP vertical slice (local development only).
+**Current state:** Document Intelligence Phases 1–12 complete (local development, in-memory storage, synchronous processing). See `FINAL_ARCHITECTURE.md` for the north-star production design and `docs/architecture/SCALE_ANALYSIS.md` for the scaling roadmap.
 
-## What This MVP Does
+## What This System Does
 
 ```
-Upload file → Parse text → Chunk → AI Summarise → Structured JSON → UI with evidence
+Upload file
+  → Parse (PDF / TXT / MD)
+  → Preprocess (unicode, whitespace, header/footer removal)
+  → Route (document type classification)
+  → Chunk (fixed-size / paragraph / page-bounded)
+  → Size classify + enrich for retrieval
+  → Deterministic field extraction (regex + keyword-window)
+  → AI summarisation (LLM with evidence grounding)
+  → Postprocess (date/currency normalisation, confidence clamping)
+  → Auto-classify for human review (trigger reasons + priority)
+  → Review queue with approve / reject / correct workflow
+  → Feedback signal generation from corrections
 ```
 
-This is the smallest runnable end-to-end path. It is not production-ready — it uses in-memory storage and synchronous processing. See `FINAL_ARCHITECTURE.md` for the full north-star design.
+Two UI views:
+- **Upload page** — document list, upload, extract, summarise, view results with evidence and review status
+- **Review Queue** — prioritised list of items needing human review, with field diff view and correction capabilities
+
+---
+
+## Document Intelligence Phases
+
+| Phase | Topic | Key modules |
+|-------|-------|-------------|
+| 0 | Baseline walkthrough | System trace, flow understanding |
+| 1 | Parser depth | `parser.py` — PDF/TXT/MD parsing, failure classification, parse metadata |
+| 2 | Chunking depth | `chunker.py` — fixed-size, paragraph, page-bounded strategies with metadata |
+| 3 | Document routing | `router.py` — heuristic type classification with confidence and reasons |
+| 4 | Deterministic extraction | `extractor.py` — regex fields with evidence, separate from summarisation |
+| 5 | OCR-ready design | `ocr.py` — adapter interface, fallback logic, parse quality signals |
+| 6 | Large document handling | `size_guard.py`, `chunk_selector.py` — size classification, budget-aware chunk selection |
+| 7 | Retrieval-oriented DI | `ranker.py`, `enrichment.py`, `evidence.py`, `section_detector.py` — ranking hooks, metadata enrichment |
+| 8 | Evidence-backed summaries | `grounding.py`, `summariser.py` — grounding audit, evidence packaging, coverage reporting |
+| 9 | Evaluation | `di_eval/` — field scoring, summary evaluation, slice-based metrics |
+| 10 | Pre/postprocessing | `preprocessor.py`, `postprocessor.py`, `pipeline_trace.py` — production pipeline stages |
+| 11 | Human-in-the-loop | `review_queue.py`, `review.py` — reviewable outputs, corrections, feedback signals, review UI |
+| 12 | Scale thought exercise | `docs/architecture/SCALE_ANALYSIS.md` — scaling analysis, workerization, storage roadmap |
 
 ---
 
@@ -18,41 +51,107 @@ This is the smallest runnable end-to-end path. It is not production-ready — it
 
 ```
 DI-AAI-FS/
-├── AGENT.md                    # AI assistant behaviour rules
 ├── FINAL_ARCHITECTURE.md       # North-star architecture design
+├── DocumentIntelligence.md     # Phase-by-phase DI deep-dive plan
 ├── README.md                   # ← you are here
 ├── .env.example                # Environment variable template
 ├── pyproject.toml              # Python workspace (uv)
 ├── package.json                # Node.js workspace (pnpm)
-├── pnpm-workspace.yaml
 │
 ├── apps/
-│   ├── py-api/                 # FastAPI backend (health, upload, summarise)
-│   └── web/                    # Next.js frontend (upload, viewer, evidence)
+│   ├── py-api/                 # FastAPI backend
+│   │   └── py_api/api/
+│   │       └── documents.py    # All document endpoints (upload, extract, summarise, review, correct)
+│   └── web/                    # Next.js frontend
+│       ├── app/
+│       │   ├── page.tsx        # Upload page with document list + detail view
+│       │   ├── review/page.tsx # Review queue page
+│       │   └── layout.tsx      # Root layout with navigation
+│       ├── components/
+│       │   ├── upload-panel.tsx
+│       │   ├── document-viewer.tsx
+│       │   ├── extraction-result.tsx
+│       │   ├── review-queue.tsx
+│       │   └── review-panel.tsx
+│       └── lib/
+│           ├── api.ts          # API client functions
+│           └── types.ts        # TypeScript type mirrors of Pydantic models
 │
 ├── py/libs/
-│   ├── data_model/             # Pydantic schemas (Document, Chunk, Extraction)
-│   ├── di_core/                # Document parsing + chunking
+│   ├── data_model/             # Pydantic schemas
+│   │   └── src/data_model/
+│   │       ├── document.py     # Document, Page, Chunk, Routing, ParseMeta
+│   │       ├── extraction.py   # ExtractionResult, StructuredField, Evidence, Grounding
+│   │       ├── pipeline.py     # PipelineTrace, StageOutcome, FailureKind
+│   │       └── review.py       # ReviewableOutput, CorrectionRecord, FeedbackSignal
+│   │
+│   ├── di_core/                # Document intelligence core
+│   │   └── src/di_core/
+│   │       ├── parser.py       # PDF/TXT/MD parsing with failure classification
+│   │       ├── preprocessor.py # Unicode, whitespace, header/footer cleanup
+│   │       ├── router.py       # Heuristic document type classification
+│   │       ├── chunker.py      # Fixed-size, paragraph, page-bounded chunking
+│   │       ├── extractor.py    # Regex + keyword-window field extraction
+│   │       ├── postprocessor.py# Date/currency normalisation, confidence clamping
+│   │       ├── size_guard.py   # Document size classification
+│   │       ├── chunk_selector.py # Budget-aware chunk selection for LLM
+│   │       ├── enrichment.py   # Retrieval metadata enrichment
+│   │       ├── section_detector.py # Section/heading detection
+│   │       ├── ranker.py       # Lexical + salience chunk ranking
+│   │       ├── evidence.py     # Evidence packaging from chunks
+│   │       ├── ocr.py          # OCR adapter interface (Tesseract, Textract stubs)
+│   │       ├── pipeline_trace.py # Per-stage timing and outcome tracking
+│   │       └── review_queue.py # Review triggers, priority scoring, feedback generation
+│   │
 │   ├── ai_core/                # LLM adapter + prompt registry + summariser
+│   │   └── src/ai_core/
+│   │       ├── adapter.py      # Provider-agnostic LLM adapter (LiteLLM)
+│   │       ├── prompts.py      # Prompt registry with templates
+│   │       ├── summariser.py   # Evidence-backed summarisation pipeline
+│   │       └── grounding.py    # Grounding audit (hallucination detection)
+│   │
+│   ├── di_eval/                # Evaluation framework
+│   │   └── src/di_eval/
+│   │       ├── field_scorer.py # Exact/normalised/tolerance field scoring
+│   │       ├── summary_scorer.py # Multi-dimension summary evaluation
+│   │       ├── slicer.py       # Slice-based breakdown by doc type, quality, etc.
+│   │       └── runner.py       # Evaluation pipeline orchestrator
+│   │
 │   └── storage/                # Local filesystem adapter (→ S3 later)
 │
 ├── infra/
-│   ├── compose/                # Docker Compose for local dev
+│   ├── compose/                # Docker Compose (postgres, redis, py-api, web)
 │   └── docker/                 # Dockerfiles
 │
 ├── data/
 │   ├── fixtures/               # Sample input files for testing
 │   └── contracts/              # Example JSON request/response shapes
 │
-├── tests/smoke/                # Smoke tests (health, upload)
-└── scripts/dev/                # Developer utility scripts
+├── docs/
+│   └── architecture/
+│       └── SCALE_ANALYSIS.md   # Phase 12: scaling from MVP to production
+│
+└── tests/
+    ├── smoke/                  # 13 test files, 192 tests
+    │   ├── test_health.py
+    │   ├── test_upload.py
+    │   ├── test_chunking.py
+    │   ├── test_routing.py
+    │   ├── test_extraction.py
+    │   ├── test_ocr_awareness.py
+    │   ├── test_large_document.py
+    │   ├── test_retrieval.py
+    │   ├── test_evidence_grounding.py
+    │   ├── test_preprocessing.py
+    │   └── test_hitl.py        # Review queue, corrections, feedback, list APIs
+    └── eval/
+        ├── test_field_eval.py
+        └── test_evaluation_run.py
 ```
 
 ---
 
 ## Prerequisites
-
-### Required Tools
 
 | Tool | Required Version | Purpose |
 |------|-----------------|---------|
@@ -62,60 +161,8 @@ DI-AAI-FS/
 | **pnpm** | 10.x | Node.js package manager with workspace support |
 | **Docker** | modern stable | Container runtime for Postgres, Redis |
 | **Docker Compose** | v2 | Multi-container orchestration |
-| **Git** | any modern | Version control |
 
-### Quick Environment Check
-
-Run the automated checker:
-
-```zsh
-zsh scripts/dev/check-env.sh
-```
-
-### Manual Check Commands
-
-Each command below verifies one tool. If any fails, follow the install instructions.
-
-```bash
-# Python — must be 3.12.x
-uv run python --version
-# Expected: Python 3.12.x
-# Install (macOS):  brew install python@3.12
-# Install (pyenv):  pyenv install 3.12 && pyenv global 3.12
-# Install (direct): https://www.python.org/downloads/
-
-# uv — Python package manager
-uv --version
-# Expected: uv 0.9.x or later
-# Install: curl -LsSf https://astral.sh/uv/install.sh | sh
-# Or:      brew install uv
-
-# Node.js — must be 18-22
-node --version
-# Expected: v18.x through v22.x
-# Install (nvm):  nvm install 22
-# Install (brew): brew install node@22
-# Install (fnm):  fnm install 22
-
-# pnpm — must be 10.x
-pnpm --version
-# Expected: 10.x.x
-# Install: corepack enable && corepack prepare pnpm@latest --activate
-# Or:      npm install -g pnpm
-
-# Docker
-docker --version
-# Install: https://docs.docker.com/get-docker/
-
-# Docker Compose v2
-docker compose version
-# Included with Docker Desktop.
-# Or: https://docs.docker.com/compose/install/
-
-# Git
-git --version
-# Install (macOS): xcode-select --install  OR  brew install git
-```
+Quick check: `zsh scripts/dev/check-env.sh`
 
 ---
 
@@ -128,103 +175,132 @@ git clone https://github.com/XinyuLuSean/DI-AAI-FS.git && cd DI-AAI-FS
 cp .env.example .env
 ```
 
-Edit `.env` and set your `OPENAI_API_KEY` (needed for the AI summarisation step).
+Edit `.env` and set your `OPENAI_API_KEY` (needed for AI summarisation).
 
-### 2. Install Python dependencies
-
-```bash
-uv sync
-```
-
-This installs all Python workspace members (`py-api`, `data_model`, `di_core`, `ai_core`, `storage`) into a single virtual environment managed by `uv`.
-
-### 3. Install Node.js dependencies
+### 2. Install dependencies
 
 ```bash
-pnpm install
+uv sync          # Python workspace
+pnpm install     # Node.js workspace
 ```
 
-### 4. Start infrastructure (Postgres + Redis)
+### 3. Start infrastructure
 
 ```bash
 docker compose -f infra/compose/docker-compose.yml up postgres redis -d
 ```
 
-> **Note:** The MVP uses in-memory storage, so Postgres/Redis are not strictly required yet. They are included to match the final architecture and will be wired in the next iteration.
+> **Note:** The MVP uses in-memory storage, so Postgres/Redis are not strictly required yet. They are included to match the final architecture.
 
-### 5. Start the Python API
+### 4. Start the backend
 
 ```bash
 uv run uvicorn py_api.main:app --reload --port 8000
 ```
 
-Verify: `curl http://localhost:8000/health` should return `{"status":"ok","service":"py-api","version":"0.1.0"}`
+Verify: `curl http://localhost:8000/health` → `{"status":"ok","service":"py-api","version":"0.1.0"}`
 
-### 6. Start the Next.js frontend
-
-In a separate terminal:
+### 5. Start the frontend
 
 ```bash
 pnpm dev:web
 ```
 
-Open http://localhost:3000 in your browser.
+Open http://localhost:3000
 
-### 7. Test the vertical slice
+### 6. Test the flow
 
-1. Upload `data/fixtures/sample.txt` via the web UI
-2. See the parsed document with chunks
-3. Click "Summarise Document"
-4. View the AI-generated summary with evidence references
+1. Upload a document (e.g. `data/fixtures/sample.txt` or any PDF)
+2. View parsed document with chunks, routing, and size classification
+3. Click **Extract** → see deterministic fields with confidence and evidence
+4. Click **Summarise** → see AI-generated summary with grounding audit
+5. Navigate to **Review Queue** → see items prioritised by review triggers
+6. Approve, reject, or correct extracted fields with side-by-side diff
 
-### 8. Run smoke tests
+### 7. Run tests
 
 ```bash
-uv run pytest tests/smoke/ -v
+uv run pytest tests/ -v
 ```
+
+Expected: 192 passed, 1 skipped.
 
 ---
 
-## API Endpoints (MVP)
+## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Service health check |
 | POST | `/documents/upload` | Upload and parse a file |
-| GET | `/documents/{id}` | Retrieve document with chunks |
-| POST | `/documents/{id}/summarise` | Run AI summarisation |
+| GET | `/documents` | List all documents (lightweight) |
+| GET | `/documents/{id}` | Get document with full detail |
+| GET | `/documents/{id}/extractions` | List extractions with review status |
 | GET | `/documents/{id}/extractions/{eid}` | Get extraction result |
+| POST | `/documents/{id}/extract` | Run deterministic field extraction |
+| POST | `/documents/{id}/summarise` | Run AI summarisation with grounding |
+| POST | `/documents/{id}/search` | Search chunks with ranking |
+| GET | `/documents/{id}/chunks/debug` | Debug view of all chunks |
+| GET | `/documents/review-queue` | Get review queue sorted by priority |
+| POST | `/documents/{id}/extractions/{eid}/review` | Submit review decision |
+| GET | `/documents/{id}/extractions/{eid}/review` | Get review status |
+| POST | `/documents/{id}/extractions/{eid}/correct` | Submit field corrections |
 
 ---
 
-## Architecture Decisions for the MVP
+## Architecture Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| **In-memory document store** | Simplest path to a working demo. PostgreSQL is next. |
-| **Synchronous parsing** | No worker queue yet. Parsing happens in the API process. |
+| **In-memory document store** | Simplest path to a working demo. PostgreSQL is the next step (see `SCALE_ANALYSIS.md`). |
+| **Synchronous pipeline** | No worker queue yet. All stages run in the API process. |
 | **LiteLLM adapter** | Provider-agnostic LLM calls. Can swap OpenAI ↔ Anthropic ↔ local. |
-| **Fixed-size chunking** | Deterministic and inspectable. Semantic chunking comes later. |
+| **Three chunking strategies** | Fixed-size (baseline), paragraph-aware, page-bounded — configurable per request. |
+| **Separate extraction and summarisation** | Deterministic fields evaluated on precision/recall; summaries on coverage/grounding. |
+| **Heuristic routing** | Filename + content keyword heuristics. ML classification is a future upgrade. |
+| **OCR as adapter stub** | Interface exists; Tesseract/Textract can be wired without changing pipeline. |
+| **HITL as first-class** | Review triggers, priority scoring, and correction capture built into the pipeline. |
 | **Local file storage** | Filesystem adapter with the same interface S3 will use. |
 | **No auth** | MVP is local-only. Auth is a future concern. |
-| **No BFF** | Frontend calls Python API directly. The BFF gateway comes later. |
+
+---
+
+## Key Design Patterns
+
+**Pure pipeline functions** — Every stage (`parse_document`, `chunk_text`, `extract_fields`, etc.) is a pure function that takes a `Document` and returns a result. No HTTP awareness, no state mutation. This makes workerization straightforward.
+
+**Evidence traceability** — Every extracted field and summary claim links to source chunk IDs, page numbers, and supporting snippets. The chain `Document → Chunks → Extraction → Evidence → Review → Correction → Feedback` is fully navigable.
+
+**Failure classification** — Pipeline outcomes are categorised as HARD / SOFT / RETRYABLE / REVIEW_NEEDED via `StageOutcome` and `FailureKind`. This maps directly to retry policy and HITL routing.
+
+**Review triggers** — After every extraction, `create_reviewable_output()` auto-classifies whether human review is needed based on: low confidence fields, weak grounding, hallucinated chunk IDs, degraded parse quality, and more.
 
 ---
 
 ## What Comes Next
 
-Following the build order from `AGENT.md`:
+Following the build order from `FINAL_ARCHITECTURE.md`:
 
-1. ~~repo bootstrap and environment sanity~~ ✓
-2. ~~minimal FastAPI service~~ ✓
-3. ~~minimal Next.js UI~~ ✓
-4. ~~upload + parse endpoint~~ ✓
-5. ~~chunking and structured response~~ ✓
-6. ~~one AI task with strict JSON output~~ ✓
-7. ~~evidence display in UI~~ ✓
-8. ~~local Docker Compose Dockerfiles ready~~ ✓
-9. ~~smoke tests basic tests in place, expand coverage~~ ✓
-10. PostgreSQL persistence (replace in-memory store)
-11. Evaluation framework
-12. HITL review queue
-13. Worker-based async processing
+1. ~~Repo bootstrap and environment sanity~~ ✓
+2. ~~Minimal FastAPI service~~ ✓
+3. ~~Minimal Next.js UI~~ ✓
+4. ~~Upload + parse endpoint~~ ✓
+5. ~~Chunking and structured response~~ ✓
+6. ~~AI summarisation with strict JSON output~~ ✓
+7. ~~Evidence display in UI~~ ✓
+8. ~~Local Docker Compose~~ ✓
+9. ~~Smoke tests (192 tests across 13 test files)~~ ✓
+10. ~~Document routing and type classification~~ ✓
+11. ~~Deterministic field extraction~~ ✓
+12. ~~OCR-ready design~~ ✓
+13. ~~Large document handling~~ ✓
+14. ~~Retrieval-oriented DI~~ ✓
+15. ~~Evidence-backed summaries with grounding audit~~ ✓
+16. ~~Evaluation framework~~ ✓
+17. ~~Preprocessing and postprocessing~~ ✓
+18. ~~HITL review queue with UI~~ ✓
+19. ~~Scale analysis and architecture note~~ ✓
+20. PostgreSQL persistence (replace in-memory store)
+21. Worker-based async processing (Redis queues)
+22. Embedding-based retrieval (pgvector)
+23. BFF gateway layer

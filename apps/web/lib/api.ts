@@ -4,10 +4,22 @@ export const API_BASE =
 function extractErrorMessage(detail: unknown, fallback: string): string {
   if (!detail) return fallback;
   if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail.map((d) => (typeof d === "object" && d?.msg ? d.msg : String(d)));
+    return msgs.join("; ");
+  }
   if (typeof detail === "object" && detail !== null && "message" in detail) {
     return (detail as { message: string }).message;
   }
   return fallback;
+}
+
+async function handleResponse(res: Response, fallbackMsg: string) {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(extractErrorMessage(body.detail, `${fallbackMsg} (${res.status})`));
+  }
+  return res.json();
 }
 
 export async function uploadDocument(file: File) {
@@ -63,44 +75,38 @@ export async function summariseDocument(
 
 export async function fetchDocuments() {
   const res = await fetch(`${API_BASE}/documents`);
-  if (!res.ok) throw new Error(`Failed to fetch documents (${res.status})`);
-  return res.json();
+  return handleResponse(res, "Failed to fetch documents");
 }
 
 export async function fetchDocument(documentId: string) {
   const res = await fetch(`${API_BASE}/documents/${documentId}`);
-  if (!res.ok) throw new Error(`Failed to fetch document (${res.status})`);
-  return res.json();
+  return handleResponse(res, "Failed to fetch document");
 }
 
 export async function fetchDocumentExtractions(documentId: string) {
   const res = await fetch(`${API_BASE}/documents/${documentId}/extractions`);
-  if (!res.ok) throw new Error(`Failed to fetch extractions (${res.status})`);
-  return res.json();
+  return handleResponse(res, "Failed to fetch extractions");
 }
 
 // ── Phase 11: HITL Review API ────────────────────────────────────────────
 
 export async function fetchReviewQueue() {
   const res = await fetch(`${API_BASE}/documents/review-queue`);
-  if (!res.ok) throw new Error(`Failed to fetch review queue (${res.status})`);
-  return res.json();
+  return handleResponse(res, "Failed to fetch review queue");
 }
 
 export async function getReviewStatus(documentId: string, extractionId: string) {
   const res = await fetch(
     `${API_BASE}/documents/${documentId}/extractions/${extractionId}/review`,
   );
-  if (!res.ok) throw new Error(`Failed to get review status (${res.status})`);
-  return res.json();
+  return handleResponse(res, "Failed to get review status");
 }
 
 export async function getExtraction(documentId: string, extractionId: string) {
   const res = await fetch(
     `${API_BASE}/documents/${documentId}/extractions/${extractionId}`,
   );
-  if (!res.ok) throw new Error(`Failed to get extraction (${res.status})`);
-  return res.json();
+  return handleResponse(res, "Failed to get extraction");
 }
 
 export async function submitReview(

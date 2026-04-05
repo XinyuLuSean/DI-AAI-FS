@@ -196,7 +196,7 @@ def _try_extract(doc: Document, fdef: _FieldDef) -> StructuredField | None:
             m = pattern.search(cleaned)
             if m:
                 value = m.group(fdef.group).strip()
-                snippet = _extract_snippet(page.text, m.start(), m.end())
+                snippet = _extract_snippet(cleaned, m.start(), m.end())
                 confidence = _score_confidence(value, fdef)
                 return StructuredField(
                     field_name=fdef.name,

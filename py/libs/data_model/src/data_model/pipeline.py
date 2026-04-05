@@ -132,6 +132,15 @@ def classify_parse_outcome(
             elapsed_ms=elapsed_ms,
         )
 
+    if qual == ParseQuality.UNUSABLE:
+        return StageOutcome(
+            stage=PipelineStage.PARSE,
+            success=False,
+            failure_kind=FailureKind.HARD,
+            message="Parse quality unusable — document cannot be processed reliably",
+            elapsed_ms=elapsed_ms,
+        )
+
     if qual == ParseQuality.DEGRADED:
         return StageOutcome(
             stage=PipelineStage.PARSE,

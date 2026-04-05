@@ -94,7 +94,7 @@ function QueueItem({
   isSelected: boolean;
   onSelect: (item: ReviewableOutput) => void;
 }) {
-  const status = STATUS_STYLES[item.status];
+  const status = STATUS_STYLES[item.status] ?? { bg: "bg-gray-100", text: "text-gray-600", label: item.status };
 
   return (
     <button
@@ -107,7 +107,6 @@ function QueueItem({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          {/* Priority dot */}
           <span
             className={`h-2.5 w-2.5 shrink-0 rounded-full ${priorityColor(item.priority_score)}`}
             title={`Priority: ${(item.priority_score * 100).toFixed(0)}%`}

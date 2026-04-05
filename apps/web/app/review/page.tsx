@@ -47,8 +47,9 @@ export default function ReviewPage() {
       ]);
       setExtraction(ext);
       setSelected(review);
-    } catch {
+    } catch (e: unknown) {
       setExtraction(null);
+      setError(e instanceof Error ? e.message : "Failed to load extraction details");
     } finally {
       setDetailLoading(false);
     }

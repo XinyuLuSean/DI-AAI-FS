@@ -18,13 +18,10 @@ Future evolution:
 
 from __future__ import annotations
 
-import math
 import re
 from abc import ABC, abstractmethod
 
 from data_model import DocumentChunk
-
-from di_core.evidence import package_evidence
 
 
 class RankedChunk:

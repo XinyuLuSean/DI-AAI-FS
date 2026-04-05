@@ -74,6 +74,7 @@ def chunk_text(doc: Document, config: ChunkConfig | None = None) -> Document:
             chunks = _chunk_fixed_size(doc, full_text, page_ranges, cfg)
 
     is_truncated = False
+    original_chunk_count = len(chunks)
     if cfg.max_chunks is not None and len(chunks) > cfg.max_chunks:
         chunks = chunks[: cfg.max_chunks]
         chunks[-1].is_truncated = True
@@ -91,7 +92,7 @@ def chunk_text(doc: Document, config: ChunkConfig | None = None) -> Document:
     if is_truncated:
         warnings.append(
             f"Chunk count truncated to {cfg.max_chunks} "
-            f"(would have been {len(chunks) + 1}+)"
+            f"(originally {original_chunk_count})"
         )
 
     doc.chunks = chunks

@@ -458,3 +458,80 @@ class TestFeedbackSignals:
         )
         signals = generate_feedback_signals(correction)
         assert signals == []
+
+
+# ── List API tests ────────────────────────────────────────────────────────
+
+class TestDocumentListAPI:
+    """Tests for GET /documents and GET /documents/{id}/extractions."""
+
+    def setup_method(self) -> None:
+        self.client = TestClient(app)
+
+    def test_list_documents_empty(self) -> None:
+        resp = self.client.get("/documents")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+
+    def test_list_documents_after_upload(self) -> None:
+        doc = _upload(self.client, "sample.txt")
+        resp = self.client.get("/documents")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 1
+        found = [d for d in data if d["id"] == doc["id"]]
+        assert len(found) == 1
+        item = found[0]
+        assert item["filename"] == "sample.txt"
+        assert item["page_count"] > 0
+        assert item["chunk_count"] > 0
+
+    def test_list_documents_has_extraction_count(self) -> None:
+        doc = _upload(self.client, "sample.txt")
+        self.client.post(f"/documents/{doc['id']}/extract")
+        resp = self.client.get("/documents")
+        found = [d for d in resp.json() if d["id"] == doc["id"]]
+        assert found[0]["extraction_count"] >= 1
+
+    def test_list_extractions_empty(self) -> None:
+        doc = _upload(self.client, "sample.txt")
+        resp = self.client.get(f"/documents/{doc['id']}/extractions")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_list_extractions_after_extract(self) -> None:
+        doc = _upload(self.client, "sample.txt")
+        ext = self.client.post(f"/documents/{doc['id']}/extract").json()
+        resp = self.client.get(f"/documents/{doc['id']}/extractions")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        item = data[0]
+        assert item["id"] == ext["id"]
+        assert item["output_type"] == "deterministic"
+        assert item["field_count"] > 0
+
+    def test_list_extractions_includes_review_status(self) -> None:
+        """Extraction list should include auto-populated review status."""
+        doc = _upload(self.client, "sample.txt")
+        self.client.post(f"/documents/{doc['id']}/extract")
+        resp = self.client.get(f"/documents/{doc['id']}/extractions")
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["review_status"] is not None
+
+    def test_list_extractions_review_status_updates_after_approve(self) -> None:
+        doc = _upload(self.client, "sample.txt")
+        ext = self.client.post(f"/documents/{doc['id']}/extract").json()
+        self.client.post(
+            f"/documents/{doc['id']}/extractions/{ext['id']}/review",
+            json={"status": "approved", "reviewer_id": "tester"},
+        )
+        resp = self.client.get(f"/documents/{doc['id']}/extractions")
+        data = resp.json()
+        assert data[0]["review_status"] == "approved"
+
+    def test_list_extractions_404_for_unknown_doc(self) -> None:
+        resp = self.client.get("/documents/nonexistent/extractions")
+        assert resp.status_code == 404
