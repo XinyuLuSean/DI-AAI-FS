@@ -77,7 +77,7 @@ class TestBlankPDFDetection:
             assert meta["likely_scanned"] is True
             assert meta["likely_needs_ocr"] is True
             assert len(meta["downstream_limitations"]) >= 1
-            assert data["status"] == "chunked"
+            assert data["status"] == "completed"
             assert data["chunks"] == []
 
     def test_blank_pdf_parse_meta_via_direct_parse(self) -> None:

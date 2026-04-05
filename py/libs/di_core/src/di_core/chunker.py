@@ -64,6 +64,7 @@ def chunk_text(doc: Document, config: ChunkConfig | None = None) -> Document:
     if cfg.strategy == ChunkStrategy.PAGE_BOUNDED:
         page_ranges = _build_page_offset_map(doc)
         chunks = _chunk_page_bounded(doc, page_ranges, cfg)
+
     else:
         full_text = _join_pages(doc)
         page_ranges = _build_page_offset_map(doc)
@@ -197,9 +198,11 @@ def _chunk_page_bounded(
     cfg: ChunkConfig,
 ) -> list[DocumentChunk]:
     chunks: list[DocumentChunk] = []
+    page_global_offsets = {pn: gs for pn, gs, ge in page_ranges}
 
     for page in doc.pages:
         text = page.text
+        global_base = page_global_offsets.get(page.page_number, 0)
         if len(text) <= cfg.chunk_size:
             if text.strip():
                 chunks.append(
@@ -208,8 +211,8 @@ def _chunk_page_bounded(
                         index=0,
                         text=text,
                         page_numbers=[page.page_number],
-                        char_start=0,
-                        char_end=len(text),
+                        char_start=global_base,
+                        char_end=global_base + len(text),
                         token_estimate=len(text) // 4,
                     )
                 )
@@ -224,8 +227,8 @@ def _chunk_page_bounded(
                         index=0,
                         text=text[start:end],
                         page_numbers=[page.page_number],
-                        char_start=start,
-                        char_end=end,
+                        char_start=global_base + start,
+                        char_end=global_base + end,
                         token_estimate=(end - start) // 4,
                     )
                 )

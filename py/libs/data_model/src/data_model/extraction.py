@@ -18,7 +18,7 @@ Phase 8 additions:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
@@ -163,5 +163,5 @@ class ExtractionResult(BaseModel):
     summary: SummaryResult | None = None
     grounding_audit: GroundingAudit | None = None
     summarisation_meta: SummarisationMeta | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     processing_time_ms: int = 0

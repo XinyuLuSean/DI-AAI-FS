@@ -8,7 +8,7 @@ models) so the domain logic stays independent of the persistence layer.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
@@ -218,6 +218,6 @@ class Document(BaseModel):
     sections: list[SectionLabel] = Field(default_factory=list)
     pages: list[DocumentPage] = Field(default_factory=list)
     chunks: list[DocumentChunk] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     error: str | None = None

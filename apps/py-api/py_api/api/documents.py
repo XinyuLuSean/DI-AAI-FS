@@ -154,6 +154,7 @@ async def upload_document(
     )
 
     doc = enrich_chunks_for_retrieval(doc)
+    doc.status = DocumentStatus.COMPLETED
     logger.info(
         "document.enriched",
         doc_id=doc.id,

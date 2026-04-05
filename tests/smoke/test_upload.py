@@ -28,7 +28,7 @@ class TestDocumentUpload:
             )
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "chunked"
+        assert data["status"] == "completed"
         assert data["filename"] == "sample.txt"
         assert len(data["pages"]) >= 1
         assert len(data["chunks"]) >= 1
