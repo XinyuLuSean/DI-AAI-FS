@@ -33,6 +33,18 @@ from py_api.main import app
 FIXTURES = Path(__file__).resolve().parents[2] / "data" / "fixtures"
 
 
+def fixture_path(name: str) -> Path:
+    direct = FIXTURES / name
+    if direct.exists():
+        return direct
+    matches = sorted(FIXTURES.rglob(name))
+    if not matches:
+        raise FileNotFoundError(f"Fixture not found: {name}")
+    if len(matches) > 1:
+        raise ValueError(f"Fixture name is ambiguous: {name} -> {matches}")
+    return matches[0]
+
+
 def _make_chunk_map(n: int = 5) -> dict[str, DocumentChunk]:
     """Build a map of N chunks with predictable IDs."""
     chunks = {}
@@ -112,7 +124,7 @@ class TestOutputType:
         self.client = TestClient(app)
 
     def test_deterministic_extraction_has_output_type(self) -> None:
-        with open(FIXTURES / "medical_record.txt", "rb") as f:
+        with open(fixture_path("medical_record.txt"), "rb") as f:
             resp = self.client.post(
                 "/documents/upload",
                 files={"file": ("medical_record.txt", f, "text/plain")},
@@ -126,7 +138,7 @@ class TestOutputType:
         assert data["grounding_audit"] is None
 
     def test_output_type_field_present(self) -> None:
-        with open(FIXTURES / "sample.txt", "rb") as f:
+        with open(fixture_path("sample.txt"), "rb") as f:
             resp = self.client.post(
                 "/documents/upload",
                 files={"file": ("sample.txt", f, "text/plain")},

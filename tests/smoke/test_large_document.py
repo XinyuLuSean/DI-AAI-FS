@@ -35,6 +35,18 @@ from py_api.main import app
 FIXTURES = Path(__file__).resolve().parents[2] / "data" / "fixtures"
 
 
+def fixture_path(name: str) -> Path:
+    direct = FIXTURES / name
+    if direct.exists():
+        return direct
+    matches = sorted(FIXTURES.rglob(name))
+    if not matches:
+        raise FileNotFoundError(f"Fixture not found: {name}")
+    if len(matches) > 1:
+        raise ValueError(f"Fixture name is ambiguous: {name} -> {matches}")
+    return matches[0]
+
+
 def _make_doc(
     page_count: int = 10,
     chars_per_page: int = 500,
@@ -130,7 +142,7 @@ class TestSizeCategoryOnUpload:
         self.client = TestClient(app)
 
     def test_upload_sets_size_category(self) -> None:
-        with open(FIXTURES / "sample.txt", "rb") as f:
+        with open(fixture_path("sample.txt"), "rb") as f:
             resp = self.client.post(
                 "/documents/upload",
                 files={"file": ("sample.txt", f, "text/plain")},
@@ -231,7 +243,7 @@ class TestDebugEndpointSizeInfo:
         self.client = TestClient(app)
 
     def test_debug_includes_size_guard(self) -> None:
-        with open(FIXTURES / "sample.txt", "rb") as f:
+        with open(fixture_path("sample.txt"), "rb") as f:
             resp = self.client.post(
                 "/documents/upload",
                 files={"file": ("sample.txt", f, "text/plain")},
@@ -261,7 +273,7 @@ class TestProgressiveProcessing:
         self.client = TestClient(app)
 
     def test_page_bounded_upload(self) -> None:
-        with open(FIXTURES / "sample.txt", "rb") as f:
+        with open(fixture_path("sample.txt"), "rb") as f:
             resp = self.client.post(
                 "/documents/upload",
                 files={"file": ("sample.txt", f, "text/plain")},

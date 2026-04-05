@@ -10,6 +10,7 @@ members = [
 data-model = { workspace = true }
 di-core = { workspace = true }
 ai-core = { workspace = true }
+di-eval = { workspace = true }
 storage = { workspace = true }
 py-api = { workspace = true }
 

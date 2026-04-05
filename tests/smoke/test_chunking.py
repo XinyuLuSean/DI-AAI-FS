@@ -14,8 +14,20 @@ from py_api.main import app
 FIXTURES = Path(__file__).resolve().parents[2] / "data" / "fixtures"
 
 
+def fixture_path(name: str) -> Path:
+    direct = FIXTURES / name
+    if direct.exists():
+        return direct
+    matches = sorted(FIXTURES.rglob(name))
+    if not matches:
+        raise FileNotFoundError(f"Fixture not found: {name}")
+    if len(matches) > 1:
+        raise ValueError(f"Fixture name is ambiguous: {name} -> {matches}")
+    return matches[0]
+
+
 def _upload(client: TestClient, filename: str = "sample.txt", **params: object) -> dict:
-    with open(FIXTURES / filename, "rb") as f:
+    with open(fixture_path(filename), "rb") as f:
         resp = client.post(
             "/documents/upload",
             files={"file": (filename, f, "text/plain")},

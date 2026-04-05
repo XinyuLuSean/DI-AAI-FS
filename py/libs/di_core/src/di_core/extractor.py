@@ -9,6 +9,13 @@ Design principles:
   - Explainable: every field carries extraction_method + source_snippet
   - Evidence-backed: every field links to page numbers
   - Composable: field definitions are data, not hard-coded control flow
+
+Phase 9 improvements (evaluation-driven):
+  - Preprocessing: strip markdown formatting (bold, italic, headings, table
+    pipes) so regexes work on content regardless of source format.
+  - Extended total_amount patterns for demand letters, damage estimates, and
+    markdown tables.
+  - PDF line-break tolerance for split field values.
 """
 
 from __future__ import annotations
@@ -25,6 +32,33 @@ from data_model import (
     OutputType,
     StructuredField,
 )
+
+
+# ── Text preprocessing ───────────────────────────────────────────────────
+# Strip formatting artefacts so field regexes match content regardless of
+# whether the source was plain text, markdown, or PDF with line breaks.
+
+_MD_BOLD_ITALIC = re.compile(r"\*{1,3}|_{1,3}")
+_MD_HEADING = re.compile(r"^#{1,6}\s+", re.MULTILINE)
+_MD_TABLE_SEP = re.compile(r"\|")
+_MD_TABLE_DASHES = re.compile(r"^[\s|:-]+$", re.MULTILINE)
+_MULTI_SPACE = re.compile(r"  +")
+
+
+def _preprocess_for_extraction(text: str) -> str:
+    """Normalise page text before regex extraction.
+
+    Strips markdown bold/italic markers, heading prefixes, and table pipe
+    delimiters so that ``**Patient Name:** Robert Thompson`` becomes
+    ``Patient Name: Robert Thompson`` — matchable by the same regexes that
+    work on plain text.
+    """
+    text = _MD_BOLD_ITALIC.sub("", text)
+    text = _MD_HEADING.sub("", text)
+    text = _MD_TABLE_SEP.sub(" ", text)
+    text = _MD_TABLE_DASHES.sub("", text)
+    text = _MULTI_SPACE.sub(" ", text)
+    return text
 
 
 @dataclass
@@ -66,8 +100,13 @@ _FIELD_DEFS: list[_FieldDef] = [
     _FieldDef(
         name="total_amount",
         patterns=[
-            re.compile(r"(?:total\s*(?:due|estimated\s*cost|amount))\s*[:\s]*\$\s*([\d,]+\.?\d*)", re.I),
+            re.compile(
+                r"(?:total\s*(?:due|estimated\s*(?:cost|damages)|demand|charges|amount))"
+                r"\s*[:\s]*\$?\s*([\d,]+\.?\d*)",
+                re.I,
+            ),
             re.compile(r"(?:net\s*payment)\s*[:\s]*\$\s*([\d,]+\.?\d*)", re.I),
+            re.compile(r"total\s*[:\s]+\$\s*([\d,]+\.?\d*)", re.I),
         ],
         method=ExtractionMethod.REGEX,
     ),
@@ -92,7 +131,10 @@ _FIELD_DEFS: list[_FieldDef] = [
     _FieldDef(
         name="provider_name",
         patterns=[
-            re.compile(r"(?i:adjuster|attending\s*physician|physician|provider)\s*:\s*(?:Dr\.?\s*)?([A-Z][a-z]+\s+[A-Z][a-z]+)"),
+            re.compile(
+                r"(?i:adjuster|attending\s*physician|physician|provider)"
+                r"\s*:\s*(?:Dr\.?\s*)?([A-Z][a-z]+\s+[A-Z][a-z]+)",
+            ),
         ],
         method=ExtractionMethod.KEYWORD_WINDOW,
     ),
@@ -142,10 +184,16 @@ def extract_fields(doc: Document) -> ExtractionResult:
 
 
 def _try_extract(doc: Document, fdef: _FieldDef) -> StructuredField | None:
-    """Try each pattern against each page; return first match or None."""
+    """Try each pattern against each page; return first match or None.
+
+    Runs regex against preprocessed text (markdown/table formatting stripped)
+    so patterns work uniformly across plain text, markdown, and PDF sources.
+    Snippets are captured from the original text for display fidelity.
+    """
     for page in doc.pages:
+        cleaned = _preprocess_for_extraction(page.text)
         for pattern in fdef.patterns:
-            m = pattern.search(page.text)
+            m = pattern.search(cleaned)
             if m:
                 value = m.group(fdef.group).strip()
                 snippet = _extract_snippet(page.text, m.start(), m.end())

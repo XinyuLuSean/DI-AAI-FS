@@ -14,6 +14,18 @@ from py_api.main import app
 FIXTURES = Path(__file__).resolve().parents[2] / "data" / "fixtures"
 
 
+def fixture_path(name: str) -> Path:
+    direct = FIXTURES / name
+    if direct.exists():
+        return direct
+    matches = sorted(FIXTURES.rglob(name))
+    if not matches:
+        raise FileNotFoundError(f"Fixture not found: {name}")
+    if len(matches) > 1:
+        raise ValueError(f"Fixture name is ambiguous: {name} -> {matches}")
+    return matches[0]
+
+
 class TestDocumentUpload:
     """Happy-path upload tests (existing from Phase 0)."""
 
@@ -21,7 +33,7 @@ class TestDocumentUpload:
         self.client = TestClient(app)
 
     def test_upload_text_file(self) -> None:
-        with open(FIXTURES / "sample.txt", "rb") as f:
+        with open(fixture_path("sample.txt"), "rb") as f:
             response = self.client.post(
                 "/documents/upload",
                 files={"file": ("sample.txt", f, "text/plain")},
@@ -34,7 +46,7 @@ class TestDocumentUpload:
         assert len(data["chunks"]) >= 1
 
     def test_upload_returns_chunk_provenance(self) -> None:
-        with open(FIXTURES / "sample.txt", "rb") as f:
+        with open(fixture_path("sample.txt"), "rb") as f:
             response = self.client.post(
                 "/documents/upload",
                 files={"file": ("sample.txt", f, "text/plain")},
@@ -54,7 +66,7 @@ class TestParseMeta:
         self.client = TestClient(app)
 
     def test_text_file_parse_meta(self) -> None:
-        with open(FIXTURES / "sample.txt", "rb") as f:
+        with open(fixture_path("sample.txt"), "rb") as f:
             resp = self.client.post(
                 "/documents/upload",
                 files={"file": ("sample.txt", f, "text/plain")},
@@ -79,7 +91,7 @@ class TestFailureClassification:
         self.client = TestClient(app)
 
     def test_unsupported_file_type(self) -> None:
-        with open(FIXTURES / "unsupported.docx", "rb") as f:
+        with open(fixture_path("unsupported.docx"), "rb") as f:
             resp = self.client.post(
                 "/documents/upload",
                 files={"file": ("report.docx", f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
@@ -89,7 +101,7 @@ class TestFailureClassification:
         assert detail["failure_reason"] == "unsupported_file_type"
 
     def test_empty_text_file(self) -> None:
-        with open(FIXTURES / "empty.txt", "rb") as f:
+        with open(fixture_path("empty.txt"), "rb") as f:
             resp = self.client.post(
                 "/documents/upload",
                 files={"file": ("empty.txt", f, "text/plain")},
