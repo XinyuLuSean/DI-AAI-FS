@@ -18,7 +18,7 @@ from typing import Any
 from data_model import (
     ChunkSelectionStrategy,
     Document,
-    EvidenceReference,
+    DocumentChunk,
     ExtractionResult,
     StructuredField,
     SummaryResult,
@@ -31,6 +31,7 @@ from ai_core.prompts import (
     build_summarise_user_prompt,
 )
 from di_core.chunk_selector import select_chunks_for_llm
+from di_core.evidence import package_evidence_from_ids
 
 
 def summarise_document(
@@ -77,7 +78,7 @@ def summarise_document(
     )
 
     used_ids: list[str] = raw.get("chunk_ids_used", [])
-    evidence = _build_evidence(used_ids, chunk_map)
+    evidence = package_evidence_from_ids(used_ids, chunk_map)
 
     fields = [
         StructuredField(
@@ -106,23 +107,3 @@ def summarise_document(
         summarisation_meta=summarisation_meta,
         processing_time_ms=elapsed_ms,
     )
-
-
-def _build_evidence(
-    used_ids: list[str],
-    chunk_map: dict[str, Any],
-) -> list[EvidenceReference]:
-    evidence: list[EvidenceReference] = []
-    for cid in used_ids:
-        chunk = chunk_map.get(cid)
-        if chunk is None:
-            continue
-        evidence.append(
-            EvidenceReference(
-                chunk_id=cid,
-                chunk_text=chunk.text[:300],
-                relevance_score=1.0,
-                page_numbers=chunk.page_numbers,
-            )
-        )
-    return evidence

@@ -161,8 +161,29 @@ class ChunkMeta(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class SectionLabel(BaseModel):
+    """A detected structural section within a document.
+
+    Heuristic detection — not guaranteed to be correct, but gives retrieval
+    and ranking a lightweight structural signal without requiring ML.
+    """
+
+    label: str
+    page_start: int
+    page_end: int
+    char_start: int = 0
+    char_end: int = 0
+    detection_method: str = ""
+    confidence: float = 0.5
+
+
 class DocumentChunk(BaseModel):
-    """A retrieval-ready text chunk with provenance metadata."""
+    """A retrieval-ready text chunk with provenance and retrieval metadata.
+
+    Core fields (chunk_id through is_truncated) are set by the chunker.
+    Retrieval metadata (doc_type through section_label) is populated by
+    enrich_chunks_for_retrieval() after chunking and routing complete.
+    """
 
     chunk_id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     document_id: str
@@ -174,6 +195,12 @@ class DocumentChunk(BaseModel):
     char_end: int = 0
     token_estimate: int = 0
     is_truncated: bool = False
+
+    # ── Retrieval metadata (Phase 7) ─────────────────────────────────
+    doc_type: str = ""
+    source_filename: str = ""
+    parse_quality: str = ""
+    section_label: str = ""
 
 
 class Document(BaseModel):
@@ -188,6 +215,7 @@ class Document(BaseModel):
     routing: RoutingResult | None = None
     chunk_meta: ChunkMeta | None = None
     size_category: DocumentSizeCategory | None = None
+    sections: list[SectionLabel] = Field(default_factory=list)
     pages: list[DocumentPage] = Field(default_factory=list)
     chunks: list[DocumentChunk] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -13,6 +13,7 @@ from data_model.document import (
     ParseQuality,
     RoutingResult,
     RoutingRule,
+    SectionLabel,
 )
 from data_model.extraction import (
     ChunkSelectionStrategy,
@@ -43,6 +44,7 @@ __all__ = [
     "ParseQuality",
     "RoutingResult",
     "RoutingRule",
+    "SectionLabel",
     "StructuredField",
     "SummarisationMeta",
     "SummaryResult",

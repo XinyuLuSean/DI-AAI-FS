@@ -38,12 +38,26 @@ class ChunkSelectionStrategy(StrEnum):
 
 
 class EvidenceReference(BaseModel):
-    """Links an AI output back to the source chunk that supports it."""
+    """Links an AI output back to the source chunk that supports it.
+
+    Core fields (chunk_id, chunk_text, relevance_score, page_numbers)
+    are always populated.  Citation metadata (source_filename through
+    section_label) is populated when the chunk has been enriched for
+    retrieval (Phase 7), enabling the UI to display richer citations.
+    """
 
     chunk_id: str
     chunk_text: str
     relevance_score: float = 0.0
     page_numbers: list[int] = Field(default_factory=list)
+
+    # ── Citation metadata (Phase 7) ──────────────────────────────────
+    source_filename: str = ""
+    doc_type: str = ""
+    section_label: str = ""
+    parse_quality: str = ""
+    char_start: int = 0
+    char_end: int = 0
 
 
 class StructuredField(BaseModel):

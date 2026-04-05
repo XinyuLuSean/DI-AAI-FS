@@ -1,10 +1,11 @@
-"""Document API — upload, extraction, summarisation, inspection.
+"""Document API — upload, extraction, summarisation, retrieval, inspection.
 
 Endpoints:
-  POST /documents/upload                      — accept a file, parse, chunk, store
+  POST /documents/upload                      — accept a file, parse, chunk, enrich, store
   GET  /documents/{id}                        — retrieve document metadata + chunks
   POST /documents/{id}/extract                — deterministic field extraction (no LLM)
   POST /documents/{id}/summarise              — LLM-based summarisation
+  POST /documents/{id}/search                 — rank chunks against a query
   GET  /documents/{id}/chunks/debug           — chunk inspection for debugging
   GET  /documents/{id}/extractions/{ext_id}   — retrieve extraction result
 """
@@ -16,8 +17,22 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, HTTPException, Query, UploadFile
 
-from data_model import ChunkSelectionStrategy, ChunkStrategy, Document, DocumentSource, DocumentStatus, ExtractionResult
-from di_core import ChunkConfig, chunk_text, classify_document_size, extract_fields, parse_document, route_document
+from pydantic import BaseModel, Field
+
+from data_model import ChunkSelectionStrategy, ChunkStrategy, Document, DocumentSource, DocumentStatus, EvidenceReference, ExtractionResult
+from di_core import (
+    ChunkConfig,
+    LexicalRanker,
+    SalienceRanker,
+    chunk_text,
+    classify_document_size,
+    enrich_chunks_for_retrieval,
+    extract_fields,
+    package_evidence,
+    parse_document,
+    rank_chunks,
+    route_document,
+)
 from storage import LocalStorage
 
 from py_api.core.config import get_settings
@@ -138,6 +153,14 @@ async def upload_document(
         warnings=size_guard.warnings,
     )
 
+    doc = enrich_chunks_for_retrieval(doc)
+    logger.info(
+        "document.enriched",
+        doc_id=doc.id,
+        sections=len(doc.sections),
+        section_labels=[s.label for s in doc.sections],
+    )
+
     _documents[doc.id] = doc
     return doc
 
@@ -175,6 +198,9 @@ async def debug_chunks(document_id: str) -> dict[str, Any]:
             "char_span": [c.char_start, c.char_end],
             "strategy": c.strategy,
             "is_truncated": c.is_truncated,
+            "doc_type": c.doc_type,
+            "section_label": c.section_label,
+            "parse_quality": c.parse_quality,
             "preview": preview,
         })
 
@@ -185,6 +211,7 @@ async def debug_chunks(document_id: str) -> dict[str, Any]:
         "filename": doc.filename,
         "size_category": doc.size_category,
         "size_guard": size_guard.model_dump(),
+        "sections": [s.model_dump() for s in doc.sections],
         "chunk_meta": doc.chunk_meta.model_dump() if doc.chunk_meta else None,
         "chunks": chunk_debug,
     }
@@ -210,6 +237,59 @@ async def extract(document_id: str) -> ExtractionResult:
         field_names=[f.field_name for f in result.structured_fields],
     )
     return result
+
+
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = Field(default=5, ge=1, le=50)
+    ranker: str = Field(default="salience", pattern="^(lexical|salience)$")
+
+
+class SearchResult(BaseModel):
+    document_id: str
+    query: str
+    ranker: str
+    results: list[EvidenceReference]
+
+
+@router.post("/{document_id}/search")
+async def search_chunks(document_id: str, body: SearchRequest) -> SearchResult:
+    """Rank document chunks against a query and return citation-ready results.
+
+    Available rankers:
+      salience — heuristic scoring using position, section, metadata, keywords
+      lexical  — keyword overlap scoring (term frequency)
+    """
+    doc = _documents.get(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.chunks:
+        raise HTTPException(status_code=422, detail="Document has no chunks")
+
+    ranker_impl = SalienceRanker() if body.ranker == "salience" else LexicalRanker()
+    ranked = rank_chunks(doc.chunks, body.query, ranker=ranker_impl, top_k=body.top_k)
+
+    scores = {r.chunk.chunk_id: r.score for r in ranked}
+    evidence = package_evidence(
+        [r.chunk for r in ranked],
+        relevance_scores=scores,
+    )
+
+    logger.info(
+        "document.search",
+        doc_id=document_id,
+        query=body.query[:80],
+        ranker=body.ranker,
+        results=len(evidence),
+        top_score=ranked[0].score if ranked else 0.0,
+    )
+
+    return SearchResult(
+        document_id=document_id,
+        query=body.query,
+        ranker=body.ranker,
+        results=evidence,
+    )
 
 
 @router.post("/{document_id}/summarise")
