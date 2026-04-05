@@ -27,6 +27,15 @@ from data_model.extraction import (
     SummarisationMeta,
     SummaryResult,
 )
+from data_model.pipeline import (
+    FailureKind,
+    PipelineStage,
+    PipelineTrace,
+    StageOutcome,
+    classify_extraction_outcome,
+    classify_parse_outcome,
+    classify_summary_outcome,
+)
 
 __all__ = [
     "ChunkMeta",
@@ -42,16 +51,23 @@ __all__ = [
     "EvidenceReference",
     "ExtractionMethod",
     "ExtractionResult",
+    "FailureKind",
     "GroundedKeyPoint",
     "GroundingAudit",
     "OutputType",
     "ParseFailureReason",
     "ParseMeta",
     "ParseQuality",
+    "PipelineStage",
+    "PipelineTrace",
     "RoutingResult",
     "RoutingRule",
     "SectionLabel",
+    "StageOutcome",
     "StructuredField",
     "SummarisationMeta",
     "SummaryResult",
+    "classify_extraction_outcome",
+    "classify_parse_outcome",
+    "classify_summary_outcome",
 ]

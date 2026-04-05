@@ -212,12 +212,14 @@ class Document(BaseModel):
     status: DocumentStatus = DocumentStatus.PENDING
     source: DocumentSource | None = None
     parse_meta: ParseMeta | None = None
+    preprocess_meta: dict | None = None  # PreprocessMeta from di_core (kept as dict to avoid circular import)
     routing: RoutingResult | None = None
     chunk_meta: ChunkMeta | None = None
     size_category: DocumentSizeCategory | None = None
     sections: list[SectionLabel] = Field(default_factory=list)
     pages: list[DocumentPage] = Field(default_factory=list)
     chunks: list[DocumentChunk] = Field(default_factory=list)
+    pipeline_trace: dict | None = None  # PipelineTrace from data_model.pipeline (kept as dict for serialization)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     error: str | None = None

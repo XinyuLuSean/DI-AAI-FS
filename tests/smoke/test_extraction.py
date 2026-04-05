@@ -80,8 +80,8 @@ class TestInsuranceClaimExtraction:
 
     def test_total_amount_extracted(self) -> None:
         assert "total_amount" in self.fields
-        assert "20,600" in self.fields["total_amount"]["field_value"] or \
-               "19,600" in self.fields["total_amount"]["field_value"]
+        val = self.fields["total_amount"]["field_value"]
+        assert val in ("20600.00", "19600.00"), f"Unexpected total_amount: {val}"
 
     def test_patient_name_extracted(self) -> None:
         assert "patient_name" in self.fields
@@ -93,7 +93,7 @@ class TestInsuranceClaimExtraction:
 
     def test_service_date_extracted(self) -> None:
         assert "service_date" in self.fields
-        assert "January 15, 2024" in self.fields["service_date"]["field_value"]
+        assert self.fields["service_date"]["field_value"] == "2024-01-15"
 
 
 class TestInvoiceExtraction:
@@ -111,7 +111,7 @@ class TestInvoiceExtraction:
 
     def test_total_amount_extracted(self) -> None:
         assert "total_amount" in self.fields
-        assert "6,258.13" in self.fields["total_amount"]["field_value"]
+        assert self.fields["total_amount"]["field_value"] == "6258.13"
 
     def test_account_number_extracted(self) -> None:
         assert "account_number" in self.fields

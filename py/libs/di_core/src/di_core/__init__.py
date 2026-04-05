@@ -5,6 +5,9 @@ from di_core.evidence import package_evidence, package_evidence_from_ids
 from di_core.extractor import extract_fields
 from di_core.ocr import NoOpAdapter, OCRAdapter, TesseractAdapter, TextractAdapter, get_default_ocr_adapter
 from di_core.parser import parse_document
+from di_core.pipeline_trace import log_pipeline_summary, trace_stage
+from di_core.postprocessor import PostprocessMeta, postprocess_extraction
+from di_core.preprocessor import PreprocessConfig, PreprocessMeta, preprocess_document
 from di_core.ranker import (
     ChunkRanker,
     EmbeddingRanker,
@@ -21,6 +24,9 @@ __all__ = [
     "ChunkConfig",
     "NoOpAdapter",
     "OCRAdapter",
+    "PostprocessMeta",
+    "PreprocessConfig",
+    "PreprocessMeta",
     "SizeGuardResult",
     "TesseractAdapter",
     "TextractAdapter",
@@ -35,10 +41,14 @@ __all__ = [
     "enrich_chunks_for_retrieval",
     "extract_fields",
     "get_default_ocr_adapter",
+    "log_pipeline_summary",
     "package_evidence",
     "package_evidence_from_ids",
     "parse_document",
+    "postprocess_extraction",
+    "preprocess_document",
     "rank_chunks",
     "route_document",
     "select_chunks_for_llm",
+    "trace_stage",
 ]

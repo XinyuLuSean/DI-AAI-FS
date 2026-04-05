@@ -1,9 +1,9 @@
 """Document API — upload, extraction, summarisation, retrieval, inspection.
 
 Endpoints:
-  POST /documents/upload                      — accept a file, parse, chunk, enrich, store
+  POST /documents/upload                      — accept a file, parse, preprocess, chunk, enrich, store
   GET  /documents/{id}                        — retrieve document metadata + chunks
-  POST /documents/{id}/extract                — deterministic field extraction (no LLM)
+  POST /documents/{id}/extract                — deterministic field extraction (no LLM) + postprocessing
   POST /documents/{id}/summarise              — LLM-based summarisation
   POST /documents/{id}/search                 — rank chunks against a query
   GET  /documents/{id}/chunks/debug           — chunk inspection for debugging
@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile
 
 from pydantic import BaseModel, Field
 
-from data_model import ChunkSelectionStrategy, ChunkStrategy, Document, DocumentSource, DocumentStatus, EvidenceReference, ExtractionResult
+from data_model import ChunkSelectionStrategy, ChunkStrategy, Document, DocumentSource, DocumentStatus, EvidenceReference, ExtractionResult, PipelineStage, PipelineTrace
 from di_core import (
     ChunkConfig,
     LexicalRanker,
@@ -28,10 +28,14 @@ from di_core import (
     classify_document_size,
     enrich_chunks_for_retrieval,
     extract_fields,
+    log_pipeline_summary,
     package_evidence,
     parse_document,
+    postprocess_extraction,
+    preprocess_document,
     rank_chunks,
     route_document,
+    trace_stage,
 )
 from storage import LocalStorage
 
@@ -57,9 +61,15 @@ async def upload_document(
     chunk_overlap: int = Query(default=200, ge=0),
     max_chunks: int | None = Query(default=None, ge=1),
 ) -> Document:
-    """Accept a file upload, parse it, chunk it, and return the document record."""
+    """Accept a file upload, parse, preprocess, chunk, and return the document record.
+
+    The pipeline now records a PipelineTrace with per-stage timing and
+    failure classification (Phase 10).
+    """
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
+
+    trace = PipelineTrace()
 
     storage = _get_storage()
     content = await file.read()
@@ -80,7 +90,9 @@ async def upload_document(
 
     logger.info("document.upload", doc_id=doc.id, filename=file.filename, size=len(content))
 
-    doc = parse_document(doc, stored_path)
+    # ── Stage: Parse ──────────────────────────────────────────────────
+    with trace_stage(trace, PipelineStage.PARSE):
+        doc = parse_document(doc, stored_path)
 
     if doc.parse_meta:
         logger.info(
@@ -97,6 +109,7 @@ async def upload_document(
         )
 
     if doc.status == DocumentStatus.FAILED:
+        doc.pipeline_trace = trace.model_dump()
         _documents[doc.id] = doc
         failure_reason = ""
         if doc.parse_meta:
@@ -109,7 +122,27 @@ async def upload_document(
             },
         )
 
-    doc.routing = route_document(doc)
+    # ── Stage: Preprocess (Phase 10A) ────────────────────────────────
+    with trace_stage(trace, PipelineStage.PREPROCESS):
+        doc, preprocess_meta = preprocess_document(doc)
+        doc.preprocess_meta = preprocess_meta.model_dump()
+
+    logger.info(
+        "document.preprocessed",
+        doc_id=doc.id,
+        chars_before=preprocess_meta.chars_before,
+        chars_after=preprocess_meta.chars_after,
+        chars_removed=preprocess_meta.chars_removed,
+        headers_removed=preprocess_meta.headers_removed,
+        footers_removed=preprocess_meta.footers_removed,
+        duplicates_suppressed=preprocess_meta.duplicate_lines_suppressed,
+        warnings=preprocess_meta.warnings,
+    )
+
+    # ── Stage: Route ──────────────────────────────────────────────────
+    with trace_stage(trace, PipelineStage.ROUTE):
+        doc.routing = route_document(doc)
+
     logger.info(
         "document.routed",
         doc_id=doc.id,
@@ -120,13 +153,15 @@ async def upload_document(
         warnings=doc.routing.warnings,
     )
 
+    # ── Stage: Chunk ──────────────────────────────────────────────────
     chunk_cfg = ChunkConfig(
         strategy=chunk_strategy,
         chunk_size=chunk_size,
         overlap=chunk_overlap,
         max_chunks=max_chunks,
     )
-    doc = chunk_text(doc, chunk_cfg)
+    with trace_stage(trace, PipelineStage.CHUNK):
+        doc = chunk_text(doc, chunk_cfg)
 
     if doc.chunk_meta:
         logger.info(
@@ -139,8 +174,11 @@ async def upload_document(
             pages_covered=len(doc.chunk_meta.page_coverage),
         )
 
-    size_guard = classify_document_size(doc)
-    doc.size_category = size_guard.category
+    # ── Stage: Size classify ──────────────────────────────────────────
+    with trace_stage(trace, PipelineStage.SIZE_CLASSIFY):
+        size_guard = classify_document_size(doc)
+        doc.size_category = size_guard.category
+
     logger.info(
         "document.size_classified",
         doc_id=doc.id,
@@ -153,7 +191,10 @@ async def upload_document(
         warnings=size_guard.warnings,
     )
 
-    doc = enrich_chunks_for_retrieval(doc)
+    # ── Stage: Enrich ─────────────────────────────────────────────────
+    with trace_stage(trace, PipelineStage.ENRICH):
+        doc = enrich_chunks_for_retrieval(doc)
+
     doc.status = DocumentStatus.COMPLETED
     logger.info(
         "document.enriched",
@@ -161,6 +202,10 @@ async def upload_document(
         sections=len(doc.sections),
         section_labels=[s.label for s in doc.sections],
     )
+
+    # ── Finalize pipeline trace ───────────────────────────────────────
+    doc.pipeline_trace = trace.model_dump()
+    log_pipeline_summary(trace, doc.id)
 
     _documents[doc.id] = doc
     return doc
@@ -220,7 +265,7 @@ async def debug_chunks(document_id: str) -> dict[str, Any]:
 
 @router.post("/{document_id}/extract")
 async def extract(document_id: str) -> ExtractionResult:
-    """Run deterministic field extraction (regex/heuristic — no LLM)."""
+    """Run deterministic field extraction (regex/heuristic — no LLM) + postprocessing."""
     doc = _documents.get(document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -228,6 +273,9 @@ async def extract(document_id: str) -> ExtractionResult:
         raise HTTPException(status_code=422, detail="Document has no pages")
 
     result = extract_fields(doc)
+
+    result, postprocess_meta = postprocess_extraction(result)
+
     _extractions[result.id] = result
 
     logger.info(
@@ -236,6 +284,9 @@ async def extract(document_id: str) -> ExtractionResult:
         fields=len(result.structured_fields),
         time_ms=result.processing_time_ms,
         field_names=[f.field_name for f in result.structured_fields],
+        dates_normalized=postprocess_meta.dates_normalized,
+        currencies_normalized=postprocess_meta.currencies_normalized,
+        evidence_deduped=postprocess_meta.evidence_deduped,
     )
     return result
 
