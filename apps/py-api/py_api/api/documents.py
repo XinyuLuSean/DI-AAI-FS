@@ -1,13 +1,19 @@
-"""Document API — upload, extraction, summarisation, retrieval, inspection.
+"""Document API — upload, extraction, summarisation, retrieval, review, inspection.
 
 Endpoints:
-  POST /documents/upload                      — accept a file, parse, preprocess, chunk, enrich, store
-  GET  /documents/{id}                        — retrieve document metadata + chunks
-  POST /documents/{id}/extract                — deterministic field extraction (no LLM) + postprocessing
-  POST /documents/{id}/summarise              — LLM-based summarisation
-  POST /documents/{id}/search                 — rank chunks against a query
-  GET  /documents/{id}/chunks/debug           — chunk inspection for debugging
-  GET  /documents/{id}/extractions/{ext_id}   — retrieve extraction result
+  GET  /documents                                       — list all documents (lightweight)
+  POST /documents/upload                                — accept a file, parse, preprocess, chunk, enrich, store
+  GET  /documents/review-queue                          — list items needing review (Phase 11)
+  GET  /documents/{id}                                  — retrieve document metadata + chunks
+  GET  /documents/{id}/extractions                      — list extractions for a document (with review status)
+  POST /documents/{id}/extract                          — deterministic field extraction (no LLM) + postprocessing
+  POST /documents/{id}/summarise                        — LLM-based summarisation
+  POST /documents/{id}/search                           — rank chunks against a query
+  GET  /documents/{id}/chunks/debug                     — chunk inspection for debugging
+  GET  /documents/{id}/extractions/{ext_id}             — retrieve extraction result
+  POST /documents/{id}/extractions/{ext_id}/review      — submit a review decision (Phase 11)
+  POST /documents/{id}/extractions/{ext_id}/correct     — submit corrections (Phase 11)
+  GET  /documents/{id}/extractions/{ext_id}/review      — get review status (Phase 11)
 """
 
 from __future__ import annotations
@@ -19,15 +25,33 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile
 
 from pydantic import BaseModel, Field
 
-from data_model import ChunkSelectionStrategy, ChunkStrategy, Document, DocumentSource, DocumentStatus, EvidenceReference, ExtractionResult, PipelineStage, PipelineTrace
+from data_model import (
+    ChunkSelectionStrategy,
+    ChunkStrategy,
+    CorrectionRecord,
+    Document,
+    DocumentSource,
+    DocumentStatus,
+    EvidenceReference,
+    ExtractionResult,
+    FeedbackSignal,
+    ParseQuality,
+    PipelineStage,
+    PipelineTrace,
+    ReviewableOutput,
+    ReviewDecision,
+    ReviewStatus,
+)
 from di_core import (
     ChunkConfig,
     LexicalRanker,
     SalienceRanker,
     chunk_text,
     classify_document_size,
+    create_reviewable_output,
     enrich_chunks_for_retrieval,
     extract_fields,
+    generate_feedback_signals,
     log_pipeline_summary,
     package_evidence,
     parse_document,
@@ -46,6 +70,75 @@ router = APIRouter()
 
 _documents: dict[str, Document] = {}
 _extractions: dict[str, ExtractionResult] = {}
+_reviewables: dict[str, ReviewableOutput] = {}  # keyed by extraction_id
+_corrections: dict[str, CorrectionRecord] = {}  # keyed by correction_id
+_feedback: list[FeedbackSignal] = []
+
+
+# ── Request / response models ─────────────────────────────────────────────
+
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = Field(default=5, ge=1, le=50)
+    ranker: str = Field(default="salience", pattern="^(lexical|salience)$")
+
+
+class SearchResult(BaseModel):
+    document_id: str
+    query: str
+    ranker: str
+    results: list[EvidenceReference]
+
+
+class SubmitReviewRequest(BaseModel):
+    status: ReviewStatus
+    reviewer_id: str = ""
+    notes: str = ""
+
+
+class SubmitCorrectionRequest(BaseModel):
+    reviewer_id: str = ""
+    field_corrections: list[dict] = Field(default_factory=list)
+    summary_correction: dict | None = None
+    evidence_mismatches: list[dict] = Field(default_factory=list)
+    parse_complaints: list[dict] = Field(default_factory=list)
+    notes: str = ""
+
+
+class ReviewQueueResponse(BaseModel):
+    items: list[ReviewableOutput]
+    total: int
+    pending_count: int
+    auto_accepted_count: int
+
+
+class DocumentListItem(BaseModel):
+    """Lightweight document summary for list views (no pages/chunks payload)."""
+    id: str
+    filename: str
+    status: str
+    content_type: str
+    doc_type: str | None = None
+    page_count: int = 0
+    chunk_count: int = 0
+    size_category: str | None = None
+    extraction_count: int = 0
+    created_at: str
+
+
+class ExtractionListItem(BaseModel):
+    """Extraction summary with review status for document detail view."""
+    id: str
+    document_id: str
+    output_type: str
+    model_used: str
+    field_count: int = 0
+    has_summary: bool = False
+    processing_time_ms: int = 0
+    review_status: str | None = None
+    review_triggers: list[str] = Field(default_factory=list)
+    review_priority: float = 0.0
+    created_at: str
 
 
 def _get_storage() -> LocalStorage:
@@ -211,12 +304,88 @@ async def upload_document(
     return doc
 
 
+# ── List endpoints (must be before /{document_id} to avoid route conflict) ──
+
+@router.get("", response_model=list[DocumentListItem])
+async def list_documents() -> list[DocumentListItem]:
+    """Return lightweight summaries of all uploaded documents, newest first."""
+    items: list[DocumentListItem] = []
+    for doc in _documents.values():
+        ext_count = sum(
+            1 for e in _extractions.values() if e.document_id == doc.id
+        )
+        items.append(DocumentListItem(
+            id=doc.id,
+            filename=doc.filename,
+            status=doc.status.value,
+            content_type=doc.content_type,
+            doc_type=doc.routing.predicted_type.value if doc.routing else None,
+            page_count=len(doc.pages),
+            chunk_count=len(doc.chunks),
+            size_category=doc.size_category.value if doc.size_category else None,
+            extraction_count=ext_count,
+            created_at=doc.created_at.isoformat(),
+        ))
+    items.sort(key=lambda d: d.created_at, reverse=True)
+    return items
+
+
+@router.get("/review-queue", response_model=ReviewQueueResponse)
+async def get_review_queue() -> ReviewQueueResponse:
+    """List all items in the review queue, sorted by priority (highest first).
+
+    Returns pending, in-review, and recently decided items.
+    Auto-accepted items are counted but not included in the main list.
+    """
+    all_items = list(_reviewables.values())
+    pending = [r for r in all_items if r.status == ReviewStatus.PENDING_REVIEW]
+    auto_accepted = [r for r in all_items if r.status == ReviewStatus.AUTO_ACCEPTED]
+
+    sorted_items = sorted(all_items, key=lambda r: r.priority_score, reverse=True)
+
+    return ReviewQueueResponse(
+        items=sorted_items,
+        total=len(all_items),
+        pending_count=len(pending),
+        auto_accepted_count=len(auto_accepted),
+    )
+
+
 @router.get("/{document_id}")
 async def get_document(document_id: str) -> Document:
     doc = _documents.get(document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
     return doc
+
+
+@router.get("/{document_id}/extractions", response_model=list[ExtractionListItem])
+async def list_extractions(document_id: str) -> list[ExtractionListItem]:
+    """List all extractions for a document, with review status attached."""
+    doc = _documents.get(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    items: list[ExtractionListItem] = []
+    for ext in _extractions.values():
+        if ext.document_id != document_id:
+            continue
+        review = _reviewables.get(ext.id)
+        items.append(ExtractionListItem(
+            id=ext.id,
+            document_id=ext.document_id,
+            output_type=ext.output_type,
+            model_used=ext.model_used,
+            field_count=len(ext.structured_fields),
+            has_summary=ext.summary is not None,
+            processing_time_ms=ext.processing_time_ms,
+            review_status=review.status.value if review else None,
+            review_triggers=[t.value for t in review.trigger_reasons] if review else [],
+            review_priority=review.priority_score if review else 0.0,
+            created_at=ext.created_at.isoformat() if hasattr(ext.created_at, "isoformat") else str(ext.created_at),
+        ))
+    items.sort(key=lambda e: e.created_at, reverse=True)
+    return items
 
 
 @router.get("/{document_id}/chunks/debug")
@@ -278,6 +447,15 @@ async def extract(document_id: str) -> ExtractionResult:
 
     _extractions[result.id] = result
 
+    parse_quality = doc.parse_meta.quality if doc.parse_meta else None
+    routing_confidence = doc.routing.confidence if doc.routing else None
+    reviewable = create_reviewable_output(
+        result,
+        parse_quality=parse_quality,
+        routing_confidence=routing_confidence,
+    )
+    _reviewables[result.id] = reviewable
+
     logger.info(
         "document.extracted",
         doc_id=document_id,
@@ -287,21 +465,11 @@ async def extract(document_id: str) -> ExtractionResult:
         dates_normalized=postprocess_meta.dates_normalized,
         currencies_normalized=postprocess_meta.currencies_normalized,
         evidence_deduped=postprocess_meta.evidence_deduped,
+        review_status=reviewable.status.value,
+        review_triggers=[t.value for t in reviewable.trigger_reasons],
+        review_priority=reviewable.priority_score,
     )
     return result
-
-
-class SearchRequest(BaseModel):
-    query: str
-    top_k: int = Field(default=5, ge=1, le=50)
-    ranker: str = Field(default="salience", pattern="^(lexical|salience)$")
-
-
-class SearchResult(BaseModel):
-    document_id: str
-    query: str
-    ranker: str
-    results: list[EvidenceReference]
 
 
 @router.post("/{document_id}/search")
@@ -394,6 +562,15 @@ async def summarise(
     )
     _extractions[result.id] = result
 
+    parse_quality = doc.parse_meta.quality if doc.parse_meta else None
+    routing_confidence = doc.routing.confidence if doc.routing else None
+    reviewable = create_reviewable_output(
+        result,
+        parse_quality=parse_quality,
+        routing_confidence=routing_confidence,
+    )
+    _reviewables[result.id] = reviewable
+
     sm = result.summarisation_meta
     logger.info(
         "document.summarised",
@@ -406,6 +583,8 @@ async def summarise(
         total_available=sm.total_chunks_available if sm else None,
         coverage=sm.coverage_ratio if sm else None,
         is_partial=sm.is_partial if sm else None,
+        review_status=reviewable.status.value,
+        review_triggers=[t.value for t in reviewable.trigger_reasons],
     )
     return result
 
@@ -416,3 +595,187 @@ async def get_extraction(document_id: str, extraction_id: str) -> ExtractionResu
     if result is None or result.document_id != document_id:
         raise HTTPException(status_code=404, detail="Extraction not found")
     return result
+
+
+# ── HITL: Review and Correction (Phase 11) ────────────────────────────────
+
+@router.post("/{document_id}/extractions/{extraction_id}/review")
+async def submit_review(
+    document_id: str,
+    extraction_id: str,
+    body: SubmitReviewRequest,
+) -> ReviewableOutput:
+    """Submit a human review decision for an extraction result.
+
+    Transitions the ReviewableOutput to the new status and records
+    the decision with reviewer identity and notes.
+    """
+    result = _extractions.get(extraction_id)
+    if result is None or result.document_id != document_id:
+        raise HTTPException(status_code=404, detail="Extraction not found")
+
+    if extraction_id not in _reviewables:
+        doc = _documents.get(document_id)
+        parse_quality = None
+        routing_confidence = None
+        if doc and doc.parse_meta:
+            parse_quality = doc.parse_meta.quality
+        if doc and doc.routing:
+            routing_confidence = doc.routing.confidence
+
+        reviewable = create_reviewable_output(
+            result,
+            parse_quality=parse_quality,
+            routing_confidence=routing_confidence,
+        )
+        _reviewables[extraction_id] = reviewable
+
+    reviewable = _reviewables[extraction_id]
+
+    decision = ReviewDecision(
+        extraction_id=extraction_id,
+        document_id=document_id,
+        reviewer_id=body.reviewer_id,
+        status=body.status,
+        notes=body.notes,
+    )
+    reviewable.decisions.append(decision)
+    reviewable.status = body.status
+
+    logger.info(
+        "hitl.review_submitted",
+        doc_id=document_id,
+        extraction_id=extraction_id,
+        status=body.status.value,
+        reviewer=body.reviewer_id,
+        triggers=[t.value for t in reviewable.trigger_reasons],
+        priority=reviewable.priority_score,
+    )
+
+    return reviewable
+
+
+@router.get("/{document_id}/extractions/{extraction_id}/review")
+async def get_review_status(
+    document_id: str,
+    extraction_id: str,
+) -> ReviewableOutput:
+    """Get the current review status for an extraction result.
+
+    If no review exists yet, creates a ReviewableOutput with
+    auto-classified triggers and priority.
+    """
+    result = _extractions.get(extraction_id)
+    if result is None or result.document_id != document_id:
+        raise HTTPException(status_code=404, detail="Extraction not found")
+
+    if extraction_id not in _reviewables:
+        doc = _documents.get(document_id)
+        parse_quality = None
+        routing_confidence = None
+        if doc and doc.parse_meta:
+            parse_quality = doc.parse_meta.quality
+        if doc and doc.routing:
+            routing_confidence = doc.routing.confidence
+
+        reviewable = create_reviewable_output(
+            result,
+            parse_quality=parse_quality,
+            routing_confidence=routing_confidence,
+        )
+        _reviewables[extraction_id] = reviewable
+
+    return _reviewables[extraction_id]
+
+
+@router.post("/{document_id}/extractions/{extraction_id}/correct")
+async def submit_correction(
+    document_id: str,
+    extraction_id: str,
+    body: SubmitCorrectionRequest,
+) -> dict[str, Any]:
+    """Submit corrections for an extraction result.
+
+    Creates a CorrectionRecord, generates feedback signals, and
+    transitions the review status to CORRECTED.
+    """
+    from data_model.review import (
+        EvidenceMismatchReport,
+        FieldCorrection,
+        ParseQualityComplaint,
+        SummaryCorrection,
+    )
+
+    result = _extractions.get(extraction_id)
+    if result is None or result.document_id != document_id:
+        raise HTTPException(status_code=404, detail="Extraction not found")
+
+    field_map = {f.field_name: f for f in result.structured_fields}
+    field_corrections = []
+    for fc in body.field_corrections:
+        fname = fc.get("field_name", "")
+        original = field_map[fname] if fname in field_map else None
+        field_corrections.append(FieldCorrection(
+            field_name=fname,
+            original_value=original.field_value if original else "",
+            corrected_value=fc.get("corrected_value", ""),
+            original_confidence=original.confidence if original else 0.0,
+            reason=fc.get("reason", ""),
+            corrected_by=body.reviewer_id,
+        ))
+
+    summary_correction = None
+    if body.summary_correction and result.summary:
+        summary_correction = SummaryCorrection(
+            original_summary_text=result.summary.summary_text,
+            corrected_summary_text=body.summary_correction.get("corrected_summary_text", ""),
+            reason=body.summary_correction.get("reason", ""),
+            corrected_by=body.reviewer_id,
+        )
+
+    evidence_mismatches = [
+        EvidenceMismatchReport(**em) for em in body.evidence_mismatches
+    ]
+    parse_complaints = [
+        ParseQualityComplaint(**pc) for pc in body.parse_complaints
+    ]
+
+    correction = CorrectionRecord(
+        extraction_id=extraction_id,
+        document_id=document_id,
+        reviewer_id=body.reviewer_id,
+        field_corrections=field_corrections,
+        summary_correction=summary_correction,
+        evidence_mismatches=evidence_mismatches,
+        parse_complaints=parse_complaints,
+        notes=body.notes,
+    )
+    _corrections[correction.id] = correction
+
+    signals = generate_feedback_signals(correction)
+    _feedback.extend(signals)
+
+    if extraction_id in _reviewables:
+        reviewable = _reviewables[extraction_id]
+        reviewable.status = ReviewStatus.CORRECTED
+        reviewable.correction_id = correction.id
+
+    logger.info(
+        "hitl.correction_submitted",
+        doc_id=document_id,
+        extraction_id=extraction_id,
+        correction_id=correction.id,
+        field_corrections=len(field_corrections),
+        summary_corrected=summary_correction is not None,
+        evidence_mismatches=len(evidence_mismatches),
+        parse_complaints=len(parse_complaints),
+        feedback_signals=len(signals),
+        reviewer=body.reviewer_id,
+    )
+
+    return {
+        "correction_id": correction.id,
+        "total_corrections": correction.total_corrections,
+        "feedback_signals_generated": len(signals),
+        "review_status": _reviewables[extraction_id].status.value if extraction_id in _reviewables else "pending_review",
+    }

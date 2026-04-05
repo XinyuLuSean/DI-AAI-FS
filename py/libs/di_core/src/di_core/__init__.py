@@ -16,6 +16,13 @@ from di_core.ranker import (
     SalienceRanker,
     rank_chunks,
 )
+from di_core.review_queue import (
+    classify_review_triggers,
+    compute_review_priority,
+    create_reviewable_output,
+    generate_feedback_signals,
+    should_auto_accept,
+)
 from di_core.router import route_document
 from di_core.section_detector import detect_sections
 from di_core.size_guard import SizeGuardResult, classify_document_size
@@ -37,9 +44,13 @@ __all__ = [
     "RankedChunk",
     "SalienceRanker",
     "classify_document_size",
+    "classify_review_triggers",
+    "compute_review_priority",
+    "create_reviewable_output",
     "detect_sections",
     "enrich_chunks_for_retrieval",
     "extract_fields",
+    "generate_feedback_signals",
     "get_default_ocr_adapter",
     "log_pipeline_summary",
     "package_evidence",
@@ -50,5 +61,6 @@ __all__ = [
     "rank_chunks",
     "route_document",
     "select_chunks_for_llm",
+    "should_auto_accept",
     "trace_stage",
 ]

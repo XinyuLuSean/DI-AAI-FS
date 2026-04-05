@@ -211,3 +211,90 @@ export interface ExtractionResponse {
   created_at: string;
   processing_time_ms: number;
 }
+
+// ── Document and extraction list types ────────────────────────────────────
+
+export interface DocumentListItem {
+  id: string;
+  filename: string;
+  status: string;
+  content_type: string;
+  doc_type: string | null;
+  page_count: number;
+  chunk_count: number;
+  size_category: string | null;
+  extraction_count: number;
+  created_at: string;
+}
+
+export interface ExtractionListItem {
+  id: string;
+  document_id: string;
+  output_type: string;
+  model_used: string;
+  field_count: number;
+  has_summary: boolean;
+  processing_time_ms: number;
+  review_status: string | null;
+  review_triggers: string[];
+  review_priority: number;
+  created_at: string;
+}
+
+// ── Phase 11: HITL Review Types ──────────────────────────────────────────
+
+export type ReviewStatus =
+  | "pending_review"
+  | "in_review"
+  | "approved"
+  | "corrected"
+  | "rejected"
+  | "auto_accepted";
+
+export type ReviewTriggerReason =
+  | "low_confidence_field"
+  | "no_fields_extracted"
+  | "weak_grounding"
+  | "ungrounded_key_points"
+  | "hallucinated_chunk_ids"
+  | "partial_coverage"
+  | "degraded_parse_quality"
+  | "low_routing_confidence"
+  | "manual_request";
+
+export interface ReviewDecision {
+  id: string;
+  extraction_id: string;
+  document_id: string;
+  reviewer_id: string;
+  status: ReviewStatus;
+  notes: string;
+  created_at: string;
+}
+
+export interface ReviewableOutput {
+  id: string;
+  extraction_id: string;
+  document_id: string;
+  status: ReviewStatus;
+  trigger_reasons: ReviewTriggerReason[];
+  priority_score: number;
+  decisions: ReviewDecision[];
+  correction_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReviewQueueResponse {
+  items: ReviewableOutput[];
+  total: number;
+  pending_count: number;
+  auto_accepted_count: number;
+}
+
+export interface CorrectionResponse {
+  correction_id: string;
+  total_corrections: number;
+  feedback_signals_generated: number;
+  review_status: string;
+}
