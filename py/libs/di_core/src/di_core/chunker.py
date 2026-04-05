@@ -46,8 +46,15 @@ def chunk_text(doc: Document, config: ChunkConfig | None = None) -> Document:
     full_text = "\n\n".join(p.text for p in doc.pages)
 
     if not full_text.strip():
-        doc.status = DocumentStatus.FAILED
-        doc.error = "No text extracted from document"
+        doc.chunks = []
+        doc.chunk_meta = ChunkMeta(
+            strategy=cfg.strategy,
+            chunk_size=cfg.chunk_size,
+            overlap=cfg.overlap,
+            chunk_count=0,
+            warnings=["No text available to chunk — document may be scanned or empty"],
+        )
+        doc.status = DocumentStatus.CHUNKED
         return doc
 
     page_ranges = _build_page_offset_map(doc)

@@ -14,6 +14,8 @@ export type ParseFailureReason =
   | "unreadable_pdf"
   | "zero_text_pdf";
 
+export type ParseQuality = "good" | "degraded" | "unusable";
+
 export interface ParseMeta {
   parse_strategy: string;
   file_suffix: string;
@@ -22,6 +24,12 @@ export interface ParseMeta {
   total_chars: number;
   text_density: number;
   failure_reason: ParseFailureReason;
+  native_text_extracted: boolean;
+  likely_scanned: boolean;
+  likely_needs_ocr: boolean;
+  ocr_applied: boolean;
+  quality: ParseQuality;
+  downstream_limitations: string[];
   warnings: string[];
 }
 

@@ -66,12 +66,46 @@ export function DocumentViewer({ document: doc }: Props) {
             <span>Suffix: <span className="font-mono text-gray-700">{parseMeta.file_suffix}</span></span>
             <span>Chars: <span className="font-medium text-gray-700">{parseMeta.total_chars.toLocaleString()}</span></span>
             <span>Density: <span className="font-medium text-gray-700">{parseMeta.text_density.toFixed(1)} chars/page</span></span>
+            <span>
+              Quality:{" "}
+              <span className={`rounded-full px-2 py-0.5 font-medium ${
+                parseMeta.quality === "good"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : parseMeta.quality === "degraded"
+                    ? "bg-yellow-100 text-yellow-700"
+                    : "bg-red-100 text-red-700"
+              }`}>
+                {parseMeta.quality}
+              </span>
+            </span>
             {parseMeta.empty_page_count > 0 && (
               <span className="text-amber-600">
                 Empty pages: {parseMeta.empty_page_count}/{parseMeta.page_count}
               </span>
             )}
           </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {parseMeta.native_text_extracted && (
+              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-600">native text</span>
+            )}
+            {parseMeta.likely_scanned && (
+              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-600">likely scanned</span>
+            )}
+            {parseMeta.likely_needs_ocr && (
+              <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-600">needs OCR</span>
+            )}
+            {parseMeta.ocr_applied && (
+              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-600">OCR applied</span>
+            )}
+          </div>
+          {parseMeta.downstream_limitations.length > 0 && (
+            <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 space-y-1">
+              <p className="font-medium text-amber-700">Downstream limitations:</p>
+              {parseMeta.downstream_limitations.map((lim, i) => (
+                <p key={i} className="text-amber-600">• {lim}</p>
+              ))}
+            </div>
+          )}
           {parseMeta.warnings.length > 0 && (
             <div className="mt-2 space-y-1">
               {parseMeta.warnings.map((w, i) => (

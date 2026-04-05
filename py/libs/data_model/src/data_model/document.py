@@ -35,6 +35,14 @@ class ParseFailureReason(StrEnum):
     ZERO_TEXT_PDF = "zero_text_pdf"
 
 
+class ParseQuality(StrEnum):
+    """Overall parse quality assessment."""
+
+    GOOD = "good"
+    DEGRADED = "degraded"
+    UNUSABLE = "unusable"
+
+
 class ParseMeta(BaseModel):
     """Observability metadata produced by the parser.
 
@@ -50,6 +58,14 @@ class ParseMeta(BaseModel):
     total_chars: int = 0
     text_density: float = 0.0
     failure_reason: ParseFailureReason = ParseFailureReason.NONE
+
+    native_text_extracted: bool = False
+    likely_scanned: bool = False
+    likely_needs_ocr: bool = False
+    ocr_applied: bool = False
+    quality: ParseQuality = ParseQuality.GOOD
+    downstream_limitations: list[str] = Field(default_factory=list)
+
     warnings: list[str] = Field(default_factory=list)
 
 

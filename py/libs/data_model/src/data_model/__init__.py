@@ -9,6 +9,7 @@ from data_model.document import (
     DocumentType,
     ParseFailureReason,
     ParseMeta,
+    ParseQuality,
     RoutingResult,
     RoutingRule,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "ExtractionResult",
     "ParseFailureReason",
     "ParseMeta",
+    "ParseQuality",
     "RoutingResult",
     "RoutingRule",
     "StructuredField",
