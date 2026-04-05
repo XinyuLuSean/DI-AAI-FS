@@ -28,6 +28,9 @@ export function ExtractionResult({ result }: Props) {
           {result.output_type === "deterministic" ? "Deterministic" : "AI Summary"}
         </span>
         <span>Model: {result.model_used}</span>
+        {result.prompt_name && (
+          <span>Prompt: {result.prompt_name}@{result.prompt_version}</span>
+        )}
         <span>Time: {result.processing_time_ms}ms</span>
         <span>ID: {result.id}</span>
       </div>

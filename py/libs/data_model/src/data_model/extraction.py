@@ -153,12 +153,19 @@ class SummarisationMeta(BaseModel):
 
 
 class ExtractionResult(BaseModel):
-    """Complete output of one extraction/summarisation run."""
+    """Complete output of one extraction/summarisation run.
+
+    prompt_name and prompt_version trace back to the exact PromptTemplate
+    that produced this result.  For deterministic extractions (no LLM),
+    these remain empty.
+    """
 
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     document_id: str
     output_type: OutputType = OutputType.DETERMINISTIC
     model_used: str = ""
+    prompt_name: str = ""
+    prompt_version: str = ""
     structured_fields: list[StructuredField] = Field(default_factory=list)
     summary: SummaryResult | None = None
     grounding_audit: GroundingAudit | None = None

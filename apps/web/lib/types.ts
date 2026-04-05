@@ -204,6 +204,8 @@ export interface ExtractionResponse {
   document_id: string;
   output_type: OutputType;
   model_used: string;
+  prompt_name: string;
+  prompt_version: string;
   structured_fields: StructuredField[];
   summary: SummaryResult | null;
   grounding_audit: GroundingAudit | null;
