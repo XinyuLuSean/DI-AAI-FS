@@ -22,6 +22,7 @@ from data_model import (
     EvidenceReference,
     ExtractionMethod,
     ExtractionResult,
+    OutputType,
     StructuredField,
 )
 
@@ -132,6 +133,7 @@ def extract_fields(doc: Document) -> ExtractionResult:
 
     return ExtractionResult(
         document_id=doc.id,
+        output_type=OutputType.DETERMINISTIC,
         model_used="deterministic",
         structured_fields=fields,
         summary=None,

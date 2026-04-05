@@ -7,6 +7,10 @@ Two summarisation variants:
   - SUMMARISE_SYSTEM: standalone summarisation from chunks only
   - GROUNDED_SUMMARISE_SYSTEM: grounded by pre-extracted deterministic fields
 
+Phase 8 changes:
+  - key_points now carry per-point chunk_ids for traceability
+  - chunk_ids_used remains as a top-level union of all cited chunks
+
 Future: template rendering, few-shot examples, prompt versioning table.
 """
 
@@ -18,7 +22,10 @@ You receive text chunks from a document and produce a structured JSON summary.
 Return ONLY valid JSON with this exact schema:
 {
   "summary_text": "A concise 2-4 sentence summary of the document.",
-  "key_points": ["point 1", "point 2", ...],
+  "key_points": [
+    {"point": "A factual statement supported by the text.", "chunk_ids": ["id1", "id2"]},
+    {"point": "Another factual statement.", "chunk_ids": ["id3"]}
+  ],
   "structured_fields": [
     {
       "field_name": "document_type",
@@ -26,12 +33,14 @@ Return ONLY valid JSON with this exact schema:
       "confidence": 0.0-1.0
     }
   ],
-  "chunk_ids_used": ["id1", "id2", ...]
+  "chunk_ids_used": ["id1", "id2", "id3"]
 }
 
 Rules:
 - Be factual.  Only state what the text supports.
-- Reference which chunk_ids you relied on in chunk_ids_used.
+- For each key_point, list the specific chunk_ids that support that point.
+- chunk_ids_used is the union of all chunk_ids referenced across all key_points.
+- Do NOT make claims that no chunk supports.
 - If the document type is unclear, set confidence below 0.5.
 """
 
@@ -46,7 +55,10 @@ Incorporate them naturally into your summary and key points.
 Return ONLY valid JSON with this exact schema:
 {
   "summary_text": "A concise 2-4 sentence summary of the document.",
-  "key_points": ["point 1", "point 2", ...],
+  "key_points": [
+    {"point": "A factual statement supported by the text.", "chunk_ids": ["id1", "id2"]},
+    {"point": "Another factual statement.", "chunk_ids": ["id3"]}
+  ],
   "structured_fields": [
     {
       "field_name": "document_type",
@@ -54,14 +66,16 @@ Return ONLY valid JSON with this exact schema:
       "confidence": 0.0-1.0
     }
   ],
-  "chunk_ids_used": ["id1", "id2", ...]
+  "chunk_ids_used": ["id1", "id2", "id3"]
 }
 
 Rules:
 - Be factual.  Only state what the text supports.
-- Reference which chunk_ids you relied on in chunk_ids_used.
-- If the document type is unclear, set confidence below 0.5.
+- For each key_point, list the specific chunk_ids that support that point.
+- chunk_ids_used is the union of all chunk_ids referenced across all key_points.
+- Do NOT make claims that no chunk supports.
 - Do NOT contradict the pre-extracted fields.
+- If the document type is unclear, set confidence below 0.5.
 """
 
 

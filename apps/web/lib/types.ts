@@ -96,6 +96,22 @@ export interface DocumentChunk {
   char_end: number;
   token_estimate: number;
   is_truncated: boolean;
+  doc_type: string;
+  source_filename: string;
+  parse_quality: string;
+  section_label: string;
+}
+
+export type DocumentSizeCategory = "small" | "medium" | "large" | "oversized";
+
+export interface SectionLabel {
+  label: string;
+  page_start: number;
+  page_end: number;
+  char_start: number;
+  char_end: number;
+  detection_method: string;
+  confidence: number;
 }
 
 export interface DocumentResponse {
@@ -107,6 +123,8 @@ export interface DocumentResponse {
   parse_meta: ParseMeta | null;
   routing: RoutingResult | null;
   chunk_meta: ChunkMeta | null;
+  size_category: DocumentSizeCategory | null;
+  sections: SectionLabel[];
   pages: DocumentPage[];
   chunks: DocumentChunk[];
   created_at: string;
@@ -119,6 +137,12 @@ export interface EvidenceReference {
   chunk_text: string;
   relevance_score: number;
   page_numbers: number[];
+  source_filename: string;
+  doc_type: string;
+  section_label: string;
+  parse_quality: string;
+  char_start: number;
+  char_end: number;
 }
 
 export type ExtractionMethod = "regex" | "keyword_window" | "llm" | "manual";
@@ -132,18 +156,58 @@ export interface StructuredField {
   evidence: EvidenceReference[];
 }
 
+export interface GroundedKeyPoint {
+  text: string;
+  chunk_ids: string[];
+  grounded: boolean;
+}
+
 export interface SummaryResult {
   summary_text: string;
   key_points: string[];
+  grounded_key_points: GroundedKeyPoint[];
   evidence: EvidenceReference[];
+  grounding_coverage: number;
+}
+
+export type OutputType = "deterministic" | "ai_summary";
+
+export interface GroundingAudit {
+  chunks_provided: number;
+  chunks_cited_by_llm: number;
+  chunks_cited_valid: number;
+  chunks_cited_invalid: number;
+  key_points_total: number;
+  key_points_grounded: number;
+  key_points_ungrounded: number;
+  grounding_score: number;
+  needs_review: boolean;
+  warnings: string[];
+}
+
+export interface SummarisationMeta {
+  total_chunks_available: number;
+  total_pages_available: number;
+  chunks_sent_to_llm: number;
+  chunks_cited_by_llm: number;
+  pages_covered_by_selection: number[];
+  pages_covered_by_evidence: number[];
+  coverage_ratio: number;
+  evidence_usage_ratio: number;
+  selection_strategy: string;
+  is_partial: boolean;
+  warnings: string[];
 }
 
 export interface ExtractionResponse {
   id: string;
   document_id: string;
+  output_type: OutputType;
   model_used: string;
   structured_fields: StructuredField[];
   summary: SummaryResult | null;
+  grounding_audit: GroundingAudit | null;
+  summarisation_meta: SummarisationMeta | null;
   created_at: string;
   processing_time_ms: number;
 }

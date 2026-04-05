@@ -1,6 +1,7 @@
 """Document summarisation workflow.
 
-Orchestrates: select chunks → build prompt → call LLM → parse into schema.
+Orchestrates: select chunks → build prompt → call LLM → validate grounding
+→ package evidence → return structured output with audit trail.
 
 This is the first AI task in the vertical slice.  It demonstrates:
 - strict JSON output via the adapter
@@ -8,6 +9,7 @@ This is the first AI task in the vertical slice.  It demonstrates:
 - separation between prompt definition and execution
 - grounding by pre-extracted deterministic fields (when available)
 - budget-aware chunk selection (Phase 6) with explicit coverage reporting
+- per-key-point evidence binding + grounding audit (Phase 8)
 """
 
 from __future__ import annotations
@@ -20,11 +22,13 @@ from data_model import (
     Document,
     DocumentChunk,
     ExtractionResult,
+    OutputType,
     StructuredField,
     SummaryResult,
 )
 
 from ai_core.adapter import LLMAdapter
+from ai_core.grounding import audit_grounding, enrich_summarisation_meta
 from ai_core.prompts import (
     GROUNDED_SUMMARISE_SYSTEM,
     SUMMARISE_SYSTEM,
@@ -43,10 +47,7 @@ def summarise_document(
 ) -> ExtractionResult:
     """Run summarisation over a budget-selected subset of chunks.
 
-    Instead of blindly taking the first N chunks, uses select_chunks_for_llm
-    which applies the requested strategy (head, tail, head_tail, sampled,
-    routing_aware) and produces a SummarisationMeta record so the caller
-    and user know exactly what the LLM saw vs what was available.
+    Pipeline: select → prompt → LLM → audit grounding → package evidence.
     """
     llm = llm or LLMAdapter()
     start = time.perf_counter_ns()
@@ -57,6 +58,7 @@ def summarise_document(
 
     chunk_dicts = [{"chunk_id": c.chunk_id, "text": c.text} for c in selected]
     chunk_map = {c.chunk_id: c for c in selected}
+    provided_ids = set(chunk_map.keys())
 
     extracted_field_dicts: list[dict[str, str]] | None = None
     if grounding_fields:
@@ -80,6 +82,15 @@ def summarise_document(
     used_ids: list[str] = raw.get("chunk_ids_used", [])
     evidence = package_evidence_from_ids(used_ids, chunk_map)
 
+    raw_key_points = raw.get("key_points", [])
+    grounded_points, grounding_audit_result = audit_grounding(
+        raw_key_points, used_ids, provided_ids, chunk_map,
+    )
+
+    plain_key_points = [gkp.text for gkp in grounded_points]
+    grounded_count = sum(1 for gkp in grounded_points if gkp.grounded)
+    grounding_coverage = grounded_count / len(grounded_points) if grounded_points else 0.0
+
     fields = [
         StructuredField(
             field_name=f.get("field_name", ""),
@@ -93,17 +104,25 @@ def summarise_document(
 
     summary = SummaryResult(
         summary_text=raw.get("summary_text", ""),
-        key_points=raw.get("key_points", []),
+        key_points=plain_key_points,
+        grounded_key_points=grounded_points,
         evidence=evidence,
+        grounding_coverage=round(grounding_coverage, 4),
+    )
+
+    summarisation_meta = enrich_summarisation_meta(
+        summarisation_meta, used_ids, chunk_map,
     )
 
     elapsed_ms = int((time.perf_counter_ns() - start) / 1_000_000)
 
     return ExtractionResult(
         document_id=doc.id,
+        output_type=OutputType.AI_SUMMARY,
         model_used=llm.model,
         structured_fields=fields,
         summary=summary,
+        grounding_audit=grounding_audit_result,
         summarisation_meta=summarisation_meta,
         processing_time_ms=elapsed_ms,
     )
