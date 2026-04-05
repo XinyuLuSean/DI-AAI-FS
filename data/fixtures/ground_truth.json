@@ -1,0 +1,579 @@
+{
+  "_meta": {
+    "description": "Ground truth for Phase 9 evaluation. Each entry maps a fixture filename to expected routing, extraction, and summary evaluation targets.",
+    "version": "1.0.0",
+    "field_names_match": "di_core.extractor._FIELD_DEFS",
+    "document_types_match": "data_model.DocumentType",
+    "last_updated": "2024-04-05"
+  },
+
+  "fixtures": {
+    "sample.txt": {
+      "description": "Insurance claim / case summary report — water damage",
+      "expected_routing": {
+        "type": "legal",
+        "confidence_min": 0.5,
+        "notes": "Contains claim/adjuster/coverage keywords; filename lacks type hint"
+      },
+      "expected_fields": {
+        "claim_number": { "value": "2024-INS-00142", "must_extract": true },
+        "policy_number": { "value": "POL-889921", "must_extract": true },
+        "total_amount": { "value": "20,600", "must_extract": true, "tolerance": "exact_string_or_numeric" },
+        "service_date": { "value": "January 15, 2024", "must_extract": true, "normalized": "2024-01-15" },
+        "patient_name": { "value": "Jane Doe", "must_extract": true },
+        "provider_name": { "value": "John Smith", "must_extract": true, "notes": "Adjuster, not physician" },
+        "invoice_number": { "value": null, "must_extract": false },
+        "account_number": { "value": null, "must_extract": false },
+        "mrn": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Water damage from burst pipe on January 15, 2024",
+          "Claimant is Jane Doe",
+          "Property at 742 Evergreen Terrace, Springfield",
+          "Damage to kitchen, living room, and hallway",
+          "Total estimated cost $20,600",
+          "Recommended net payment $19,600 after $1,000 deductible",
+          "Cause: frozen pipe in poorly insulated exterior wall"
+        ],
+        "document_size_category": "small"
+      }
+    },
+
+    "medical_record.txt": {
+      "description": "Patient medical record — lumbar disc herniation",
+      "expected_routing": {
+        "type": "medical",
+        "confidence_min": 0.6,
+        "notes": "Filename contains 'medical'; content has patient, diagnosis, physician, etc."
+      },
+      "expected_fields": {
+        "patient_name": { "value": "Robert Thompson", "must_extract": true },
+        "mrn": { "value": "MED-2024-5567", "must_extract": true },
+        "provider_name": { "value": "Sarah Williams", "must_extract": true },
+        "service_date": { "value": null, "must_extract": false, "notes": "No date-of-service field; document date is Feb 15 2024 but uses 'Date:' label" },
+        "claim_number": { "value": null, "must_extract": false },
+        "policy_number": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "total_amount": { "value": null, "must_extract": false },
+        "account_number": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Patient Robert Thompson, DOB 03/15/1978",
+          "Workplace injury on December 10, 2023",
+          "Diagnosis: lumbar disc herniation L4-L5",
+          "Radiculopathy in left lower extremity",
+          "MRI on January 8, 2024 confirms moderate disc herniation",
+          "Pain level 7/10",
+          "Medications: Ibuprofen, Gabapentin, Cyclobenzaprine",
+          "Plan includes epidural steroid injection referral"
+        ],
+        "document_size_category": "small"
+      }
+    },
+
+    "invoice_plumbing.txt": {
+      "description": "Plumbing restoration invoice",
+      "expected_routing": {
+        "type": "billing",
+        "confidence_min": 0.6,
+        "notes": "Filename contains 'invoice'; content has invoice, amount due, total due, payment due"
+      },
+      "expected_fields": {
+        "invoice_number": { "value": "INV-2024-0283", "must_extract": true },
+        "total_amount": { "value": "6,258.13", "must_extract": true },
+        "service_date": { "value": "February 10, 2024", "must_extract": true, "normalized": "2024-02-10", "notes": "Matches 'Invoice Date'" },
+        "account_number": { "value": "ACCT-DOE-2024", "must_extract": true },
+        "patient_name": { "value": null, "must_extract": false },
+        "provider_name": { "value": null, "must_extract": false },
+        "claim_number": { "value": null, "must_extract": false },
+        "policy_number": { "value": null, "must_extract": false },
+        "mrn": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Invoice from Springfield Plumbing & Restoration LLC",
+          "Billed to Jane Doe at 742 Evergreen Terrace",
+          "Emergency water extraction and pipe repair",
+          "Six line items totaling $5,890.00 before tax",
+          "Tax 6.25% = $368.13",
+          "Total due $6,258.13",
+          "Payment due within 30 days"
+        ],
+        "document_size_category": "small"
+      }
+    },
+
+    "attorney_letter.txt": {
+      "description": "Attorney representation letter",
+      "expected_routing": {
+        "type": "legal",
+        "confidence_min": 0.5,
+        "notes": "Filename contains 'attorney'; content has attorney, counsel, court keywords plus correspondence keywords. Legal should win."
+      },
+      "expected_fields": {
+        "claim_number": { "value": "2024-CV-0891", "must_extract": true, "notes": "Appears as 'Case No.'" },
+        "patient_name": { "value": null, "must_extract": false, "notes": "Jane Doe appears but not after patient_name/claimant keyword" },
+        "provider_name": { "value": null, "must_extract": false },
+        "policy_number": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "total_amount": { "value": null, "must_extract": false },
+        "service_date": { "value": null, "must_extract": false },
+        "account_number": { "value": null, "must_extract": false },
+        "mrn": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Letter from Martinez & Associates representing Jane Doe",
+          "Case: Doe v. Springfield Insurance Co.",
+          "Enclosed: medical records, repair estimates, photographs, sworn statement",
+          "Coverage confirmed by adjuster report of February 3, 2024",
+          "Request for claim processing within 30 days"
+        ],
+        "document_size_category": "small"
+      }
+    },
+
+    "treatment_session_notes.txt": {
+      "description": "Physical therapy session note — lumbar rehab follow-up",
+      "expected_routing": {
+        "type": "treatment",
+        "confidence_min": 0.5,
+        "notes": "Filename contains 'treatment'/'session'; content has treatment plan, therapy, functional status, treatment goal, session note keywords"
+      },
+      "expected_fields": {
+        "patient_name": { "value": "Jane Doe", "must_extract": true },
+        "mrn": { "value": "MED-2024-5567", "must_extract": true },
+        "claim_number": { "value": "2024-INS-00142", "must_extract": true },
+        "service_date": { "value": "March 5, 2024", "must_extract": true, "normalized": "2024-03-05" },
+        "provider_name": { "value": "Karen Mitchell", "must_extract": true },
+        "policy_number": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "total_amount": { "value": null, "must_extract": false },
+        "account_number": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Follow-up physical therapy session for Jane Doe",
+          "Diagnosis: lumbar disc herniation L4-L5 with radiculopathy",
+          "Pain improved from 7/10 to 5/10",
+          "Lumbar flexion improved from 45 to 60 degrees",
+          "Left hip flexor and knee extension strength improved to 4/5",
+          "Total treatment time 55 minutes with 4 CPT codes",
+          "Plan: continue PT 2x/week for 4 more weeks",
+          "Functional improvement: desk work 2 hours to 4 hours"
+        ],
+        "document_size_category": "small"
+      }
+    },
+
+    "hospital_bill_detailed.md": {
+      "description": "Detailed hospital statement of account with line items",
+      "expected_routing": {
+        "type": "billing",
+        "confidence_min": 0.5,
+        "notes": "Filename contains 'bill'; content has billing, amount due, account number, payment due, total due"
+      },
+      "expected_fields": {
+        "patient_name": { "value": "Robert Thompson", "must_extract": true },
+        "mrn": { "value": "MED-2024-5567", "must_extract": true },
+        "account_number": { "value": "ACCT-SGH-44821", "must_extract": true },
+        "policy_number": { "value": "POL-889921", "must_extract": true },
+        "claim_number": { "value": "2024-INS-00142", "must_extract": true },
+        "total_amount": { "value": "2,000.00", "must_extract": true, "notes": "Total Due (patient responsibility) = $2,000.00" },
+        "invoice_number": { "value": null, "must_extract": false },
+        "service_date": { "value": null, "must_extract": false, "notes": "Admission date present but not in service_date pattern format" },
+        "provider_name": { "value": null, "must_extract": false, "notes": "Attending Physician listed but format may not match regex" }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Hospital bill for Robert Thompson at Springfield General",
+          "Admission January 8-10, 2024 (2-day stay)",
+          "Total charges $18,070.00",
+          "Insurance adjustment -$4,517.50",
+          "Insurance payment -$11,552.50",
+          "Patient responsibility $2,000.00 (deductible + co-insurance)",
+          "16 line items across Emergency, Radiology, Lab, Pharmacy, Room & Board",
+          "MRI lumbar spine, neurology consult, PT evaluation included"
+        ],
+        "document_size_category": "small"
+      }
+    },
+
+    "case_chronology_wilson.md": {
+      "description": "Multi-page legal case chronology — fall injury with THA",
+      "expected_routing": {
+        "type": "legal",
+        "confidence_min": 0.5,
+        "notes": "Content has plaintiff, defendant, attorney, case number. Legal should dominate despite medical content."
+      },
+      "expected_fields": {
+        "claim_number": { "value": "2023-CV-04477", "must_extract": true, "notes": "Listed as Case Number" },
+        "patient_name": { "value": null, "must_extract": false, "notes": "Margaret Wilson appears as Plaintiff, not after patient/claimant keyword" },
+        "total_amount": { "value": "239,540.00", "must_extract": true, "notes": "TOTAL ESTIMATED DAMAGES line" },
+        "service_date": { "value": "September 12, 2023", "must_extract": true, "notes": "Date of Injury" },
+        "provider_name": { "value": null, "must_extract": false },
+        "policy_number": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "account_number": { "value": null, "must_extract": false },
+        "mrn": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Plaintiff Margaret Wilson, age 62",
+          "Fall from broken exterior staircase at Lakeside Apartments on Sept 12, 2023",
+          "Prior maintenance requests on Aug 4 and Aug 28 went unaddressed",
+          "Displaced right hip fracture, Garden Grade III",
+          "Total hip arthroplasty on September 13, 2023 by Dr. Patricia Reeves",
+          "6-day acute hospitalization, 28-day inpatient rehabilitation",
+          "Outpatient PT: 12 sessions, November-December 2023",
+          "Adjustment disorder with anxiety diagnosed March 2024",
+          "Total medical expenses $137,500.00",
+          "Total estimated damages $239,540.00",
+          "Liability denied by National Casualty Insurance"
+        ],
+        "document_size_category": "medium",
+        "notes": "This is the longest fixture and should trigger chunk selection strategies"
+      }
+    },
+
+    "discharge_summary.md": {
+      "description": "Hospital discharge summary — lumbar disc herniation workup",
+      "expected_routing": {
+        "type": "medical",
+        "confidence_min": 0.6,
+        "notes": "Content heavy with patient, diagnosis, physician, hospital, medication, clinical keywords"
+      },
+      "expected_fields": {
+        "patient_name": { "value": "Robert Thompson", "must_extract": true },
+        "mrn": { "value": "MED-2024-5567", "must_extract": true },
+        "account_number": { "value": "ACCT-SGH-44821", "must_extract": true },
+        "provider_name": { "value": "Sarah Williams", "must_extract": true, "notes": "Attending Physician" },
+        "claim_number": { "value": null, "must_extract": false },
+        "policy_number": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "total_amount": { "value": null, "must_extract": false },
+        "service_date": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Robert Thompson, 45-year-old male",
+          "Admission January 8-10, 2024 (2-day stay)",
+          "Workplace injury December 10, 2023 — improper lifting",
+          "MRI: moderate left paracentral disc herniation L4-L5 with L5 nerve root compression",
+          "EMG confirms acute left L5 radiculopathy",
+          "Motor deficit: ankle dorsiflexion 3+/5",
+          "Elected trial of epidural steroid injection before surgery",
+          "Discharged on gabapentin, ibuprofen, cyclobenzaprine",
+          "Follow-up: pain management Jan 22, neurosurgery Feb 5, PCP Jan 29",
+          "On short-term disability since December 20, 2023"
+        ],
+        "document_size_category": "medium"
+      }
+    },
+
+    "property_inspection.txt": {
+      "description": "Property condition assessment — ambiguous type (not clearly legal/medical/billing)",
+      "expected_routing": {
+        "type": "billing",
+        "confidence_min": 0.0,
+        "accept_types": ["billing", "unknown", "legal"],
+        "notes": "Ambiguous document. Contains repair/restoration/damage/estimated cost keywords that could trigger billing, but also insurance/claim references. Low confidence is expected and desirable — this fixture tests the router's ability to flag uncertainty."
+      },
+      "expected_fields": {
+        "claim_number": { "value": null, "must_extract": false },
+        "patient_name": { "value": null, "must_extract": false },
+        "provider_name": { "value": null, "must_extract": false },
+        "policy_number": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "total_amount": { "value": null, "must_extract": false },
+        "service_date": { "value": null, "must_extract": false, "notes": "Date of Inspection present but may not match service_date pattern" },
+        "account_number": { "value": null, "must_extract": false },
+        "mrn": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Property inspection at 742 Evergreen Terrace on February 28, 2024",
+          "Follow-up to water damage event of January 15, 2024",
+          "Inspector: David Kowalski, License IL-HI-2019-4428",
+          "Kitchen repairs complete and professional",
+          "No moisture issues detected (readings 4-7%)",
+          "Plumbing repair with added pipe insulation",
+          "Minor countertop gap recommended for caulking",
+          "Recommends water leak sensor and annual pipe inspection"
+        ],
+        "document_size_category": "small"
+      }
+    },
+
+    "patient_letter_to_insurer.txt": {
+      "description": "Patient correspondence to insurance company — claim follow-up",
+      "expected_routing": {
+        "type": "correspondence",
+        "confidence_min": 0.0,
+        "accept_types": ["correspondence", "legal"],
+        "notes": "Contains Dear/Sincerely/RE keywords (correspondence), but also claim_number/policy_number/insured keywords (legal). Correspondence should ideally win due to letter structure, but legal is acceptable given claim content."
+      },
+      "expected_fields": {
+        "claim_number": { "value": "2024-INS-00142", "must_extract": true },
+        "policy_number": { "value": "POL-889921", "must_extract": true },
+        "total_amount": { "value": null, "must_extract": false, "notes": "No total_amount/total_due pattern; individual amounts listed but not in extractable format" },
+        "patient_name": { "value": null, "must_extract": false, "notes": "Jane Doe appears but not after patient_name/claimant keyword" },
+        "provider_name": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "service_date": { "value": null, "must_extract": false },
+        "account_number": { "value": null, "must_extract": false },
+        "mrn": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Letter from Jane Doe to Springfield Insurance claims department",
+          "Following up on claim 2024-INS-00142 after 5+ weeks with no payment",
+          "Adjuster John Smith submitted report February 3, 2024",
+          "Out-of-pocket expenses: $3,745.00 total",
+          "Expected claim payment: $19,600 (after $1,000 deductible)",
+          "12-year customer requesting prompt resolution",
+          "Requests: payment date, coverage confirmation for extra expenses, additional documentation needs"
+        ],
+        "document_size_category": "small"
+      }
+    },
+
+    "multi_provider_medical.md": {
+      "description": "Consolidated multi-provider medical records — 6 providers over 6 months",
+      "expected_routing": {
+        "type": "medical",
+        "confidence_min": 0.5,
+        "notes": "Filename contains 'medical'; content saturated with patient, diagnosis, physician, hospital, medication keywords"
+      },
+      "expected_fields": {
+        "patient_name": { "value": "Margaret Wilson", "must_extract": true, "notes": "First patient_name match in document" },
+        "claim_number": { "value": "2023-CV-04477", "must_extract": true },
+        "mrn": { "value": null, "must_extract": false, "notes": "No MRN field in this document" },
+        "provider_name": { "value": "James Park", "must_extract": true, "notes": "First attending physician match (ED record)" },
+        "service_date": { "value": "September 12, 2023", "must_extract": false, "notes": "Date of injury present, may or may not match service_date regex" },
+        "total_amount": { "value": "142,230.00", "must_extract": false, "notes": "Total at end of document; may or may not match total_amount patterns" },
+        "policy_number": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "account_number": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Patient Margaret Wilson, age 62, DOB 06/22/1961",
+          "Fall from outdoor staircase September 12, 2023",
+          "Displaced right femoral neck fracture, Garden Grade III",
+          "Right total hip arthroplasty by Dr. Patricia Reeves on September 13, 2023",
+          "6-day acute hospitalization at Springfield General",
+          "28-day inpatient rehabilitation at Springfield Rehab Center",
+          "12 outpatient PT sessions, November-December 2023",
+          "FIM score improved from 60/126 to 105/126 during rehab",
+          "Adjustment disorder with anxiety diagnosed March 2024",
+          "6 providers over 6-month treatment course",
+          "Total charges $142,230.00"
+        ],
+        "document_size_category": "large",
+        "notes": "Longest fixture. Should trigger LARGE or OVERSIZED size guard. Tests chunk selection, page coverage, and multi-section summarisation."
+      }
+    },
+
+    "empty.txt": {
+      "description": "Empty file — failure/edge case test",
+      "expected_routing": {
+        "type": "unknown",
+        "confidence_min": 0.0,
+        "notes": "Should produce a parse failure or zero-text document"
+      },
+      "expected_fields": {},
+      "summary_evaluation": {
+        "key_facts": [],
+        "document_size_category": "small",
+        "notes": "No content to summarise; tests graceful failure handling"
+      }
+    },
+
+    "_comment_pdf_ready": "The following fixtures live under pdf-ready/ and are designed to be converted to PDF for testing PDF parsing, multi-page handling, and table extraction.",
+
+    "pdf-ready/insurance_eob.md": {
+      "description": "Explanation of Benefits — form-like insurance billing document (convert to PDF)",
+      "expected_routing": {
+        "type": "billing",
+        "confidence_min": 0.5,
+        "notes": "Content saturated with billing, amount due, total due, payment due, account number keywords"
+      },
+      "expected_fields": {
+        "claim_number": { "value": "2024-INS-00587", "must_extract": true },
+        "policy_number": { "value": "POL-889921", "must_extract": true },
+        "patient_name": { "value": "Robert Thompson", "must_extract": true },
+        "total_amount": { "value": null, "must_extract": false, "notes": "Multiple 'Total' lines (Total Billed, Total Allowed, Total You Owe); depends on which regex matches first" },
+        "service_date": { "value": "January 8, 2024", "must_extract": true, "notes": "Date of Service field present" },
+        "account_number": { "value": null, "must_extract": false },
+        "mrn": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "provider_name": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "EOB for Robert Thompson from Springfield Insurance",
+          "Hospital services January 8-10, 2024 at Springfield General",
+          "13 service lines with CPT codes",
+          "Total billed $17,965.00",
+          "Network discount -$4,601.75",
+          "Plan paid $10,184.60 (80% after deductible)",
+          "Patient responsibility $3,178.65 (deductible + coinsurance)",
+          "Annual deductible now fully met at $1,000.00"
+        ],
+        "document_size_category": "medium",
+        "notes": "Dense tabular data. Tests table content extraction from PDF. Multi-page when converted."
+      }
+    },
+
+    "pdf-ready/demand_letter_martinez.md": {
+      "description": "Formal legal demand letter with itemized damages (convert to PDF)",
+      "expected_routing": {
+        "type": "legal",
+        "confidence_min": 0.6,
+        "notes": "Content has plaintiff, defendant, attorney, counsel, sworn, verdict, settlement. Legal dominates."
+      },
+      "expected_fields": {
+        "claim_number": { "value": "2023-LC-08841", "must_extract": true },
+        "policy_number": { "value": "CGL-2023-55010", "must_extract": true },
+        "patient_name": { "value": "Margaret Wilson", "must_extract": true, "notes": "Listed as Claimant" },
+        "total_amount": { "value": "589,540.00", "must_extract": true, "notes": "Total Demand amount" },
+        "service_date": { "value": "September 12, 2023", "must_extract": true, "notes": "Date of Loss" },
+        "provider_name": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "account_number": { "value": null, "must_extract": false },
+        "mrn": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Demand letter from Martinez & Associates for Margaret Wilson",
+          "Fall from defective staircase railing at Lakeside Apartments Sept 12, 2023",
+          "Two prior maintenance requests ignored by property management",
+          "Building code violations documented by Code Enforcement",
+          "Right total hip arthroplasty performed",
+          "Past medical expenses $137,500.00",
+          "Future medical expenses $78,340.00",
+          "Lost wages and economic loss $23,700.00",
+          "Non-economic damages claimed $350,000.00",
+          "Total demand $589,540.00",
+          "30-day deadline to settle or lawsuit filed"
+        ],
+        "document_size_category": "large",
+        "notes": "4-5 pages as PDF. Tests multi-page legal document with tables, sections, and dollar amounts."
+      }
+    },
+
+    "pdf-ready/lab_results_thompson.md": {
+      "description": "Laboratory and diagnostic report with dense numeric/tabular data (convert to PDF)",
+      "expected_routing": {
+        "type": "medical",
+        "confidence_min": 0.6,
+        "notes": "Filename includes 'lab_results'; content saturated with patient, diagnosis, physician, hospital, clinical keywords"
+      },
+      "expected_fields": {
+        "patient_name": { "value": "Robert Thompson", "must_extract": true },
+        "mrn": { "value": "MED-2024-5567", "must_extract": true },
+        "account_number": { "value": "ACCT-SGH-44821", "must_extract": true },
+        "provider_name": { "value": "Sarah Williams", "must_extract": true, "notes": "Ordering Physician" },
+        "claim_number": { "value": null, "must_extract": false },
+        "policy_number": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "total_amount": { "value": null, "must_extract": false },
+        "service_date": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "Lab and diagnostic results for Robert Thompson, collected January 8-9, 2024",
+          "CBC with differential: all values within normal limits",
+          "BMP: glucose mildly elevated at 102 (likely non-fasting)",
+          "Inflammatory markers (ESR, CRP) normal",
+          "Coagulation studies normal — cleared for procedures",
+          "Urinalysis normal",
+          "EKG: normal sinus rhythm, no ischemic changes",
+          "Chest X-ray: normal, no acute cardiopulmonary process",
+          "MRI lumbar: moderate left paracentral disc herniation L4-L5, 7mm x 12mm, compressing left L5 nerve root",
+          "EMG: acute left L5 radiculopathy with active denervation",
+          "No peripheral neuropathy, no L4 or S1 involvement"
+        ],
+        "document_size_category": "large",
+        "notes": "Heaviest table content. 5+ pages as PDF. Tests how parser handles dense numeric tables, multi-column data, and medical abbreviations. Good stress test for section detection."
+      }
+    },
+
+    "pdf-ready/incident_report.md": {
+      "description": "Police incident/accident report — structured form layout (convert to PDF)",
+      "expected_routing": {
+        "type": "legal",
+        "confidence_min": 0.5,
+        "notes": "Content has sworn (witness statements), evidence collection, legal referral. Also has correspondence-like witness quotes. Legal should dominate."
+      },
+      "expected_fields": {
+        "claim_number": { "value": null, "must_extract": false, "notes": "Report Number SPD-2023-09-4821 present but not in claim/case number pattern" },
+        "patient_name": { "value": null, "must_extract": false, "notes": "Margaret Wilson listed as Injured Party but not after patient/claimant keyword" },
+        "service_date": { "value": "September 12, 2023", "must_extract": false, "notes": "Date of Incident present, may or may not match service_date patterns" },
+        "provider_name": { "value": null, "must_extract": false },
+        "policy_number": { "value": null, "must_extract": false },
+        "invoice_number": { "value": null, "must_extract": false },
+        "total_amount": { "value": null, "must_extract": false },
+        "account_number": { "value": null, "must_extract": false },
+        "mrn": { "value": null, "must_extract": false }
+      },
+      "summary_evaluation": {
+        "key_facts": [
+          "SPD Report #SPD-2023-09-4821 filed by Officer Daniel Reyes",
+          "Margaret Wilson fell from Building C exterior staircase at Lakeside Apartments",
+          "Railing detached at upper anchor point due to corroded bolts",
+          "Fall of approximately 8 feet to concrete landing",
+          "Witness Diane Farmer called 911 at 14:22",
+          "Patient transported to Springfield General Hospital with suspected right hip fracture",
+          "Property manager Mark Torres confirmed awareness of prior maintenance requests",
+          "Three witness statements taken at scene",
+          "Physical evidence collected: corroded bolts, mounting plate fragment",
+          "Referred to Code Enforcement for building code inspection",
+          "Case status: closed, referred as civil liability matter"
+        ],
+        "document_size_category": "large",
+        "notes": "4-5 pages as PDF. Tests form-like key/value table layout plus narrative sections plus quoted witness text. Good for testing section detection across mixed content styles."
+      }
+    }
+  },
+
+  "evaluation_slices": {
+    "by_document_type": {
+      "legal": ["sample.txt", "attorney_letter.txt", "case_chronology_wilson.md", "pdf-ready/demand_letter_martinez.md", "pdf-ready/incident_report.md"],
+      "medical": ["medical_record.txt", "discharge_summary.md", "multi_provider_medical.md", "pdf-ready/lab_results_thompson.md"],
+      "billing": ["invoice_plumbing.txt", "hospital_bill_detailed.md", "pdf-ready/insurance_eob.md"],
+      "treatment": ["treatment_session_notes.txt"],
+      "correspondence": ["patient_letter_to_insurer.txt"],
+      "ambiguous": ["property_inspection.txt"]
+    },
+    "by_size_category": {
+      "small": ["sample.txt", "medical_record.txt", "invoice_plumbing.txt", "attorney_letter.txt", "treatment_session_notes.txt", "patient_letter_to_insurer.txt", "property_inspection.txt", "empty.txt"],
+      "medium": ["hospital_bill_detailed.md", "discharge_summary.md", "case_chronology_wilson.md", "pdf-ready/insurance_eob.md"],
+      "large": ["multi_provider_medical.md", "pdf-ready/demand_letter_martinez.md", "pdf-ready/lab_results_thompson.md", "pdf-ready/incident_report.md"]
+    },
+    "by_file_format": {
+      "txt": ["sample.txt", "medical_record.txt", "invoice_plumbing.txt", "attorney_letter.txt", "treatment_session_notes.txt", "patient_letter_to_insurer.txt", "property_inspection.txt", "empty.txt"],
+      "md": ["hospital_bill_detailed.md", "discharge_summary.md", "case_chronology_wilson.md", "multi_provider_medical.md"],
+      "pdf_target": ["pdf-ready/insurance_eob.md", "pdf-ready/demand_letter_martinez.md", "pdf-ready/lab_results_thompson.md", "pdf-ready/incident_report.md"]
+    },
+    "by_extraction_density": {
+      "high_field_count": ["sample.txt", "treatment_session_notes.txt", "hospital_bill_detailed.md", "pdf-ready/demand_letter_martinez.md", "pdf-ready/insurance_eob.md"],
+      "medium_field_count": ["medical_record.txt", "invoice_plumbing.txt", "discharge_summary.md", "case_chronology_wilson.md", "pdf-ready/lab_results_thompson.md"],
+      "low_field_count": ["attorney_letter.txt", "patient_letter_to_insurer.txt", "property_inspection.txt", "multi_provider_medical.md", "pdf-ready/incident_report.md"]
+    },
+    "by_section_richness": {
+      "many_sections": ["case_chronology_wilson.md", "multi_provider_medical.md", "discharge_summary.md", "hospital_bill_detailed.md", "pdf-ready/lab_results_thompson.md", "pdf-ready/incident_report.md"],
+      "moderate_sections": ["treatment_session_notes.txt", "sample.txt", "property_inspection.txt", "pdf-ready/insurance_eob.md", "pdf-ready/demand_letter_martinez.md"],
+      "few_sections": ["medical_record.txt", "invoice_plumbing.txt", "attorney_letter.txt", "patient_letter_to_insurer.txt"]
+    },
+    "by_content_style": {
+      "narrative_heavy": ["case_chronology_wilson.md", "multi_provider_medical.md", "pdf-ready/demand_letter_martinez.md", "pdf-ready/incident_report.md"],
+      "table_heavy": ["pdf-ready/insurance_eob.md", "pdf-ready/lab_results_thompson.md", "hospital_bill_detailed.md", "invoice_plumbing.txt"],
+      "mixed": ["discharge_summary.md", "treatment_session_notes.txt", "sample.txt"],
+      "letter_form": ["attorney_letter.txt", "patient_letter_to_insurer.txt"]
+    }
+  }
+}

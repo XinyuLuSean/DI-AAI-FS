@@ -1,0 +1,76 @@
+PHYSICAL THERAPY SESSION NOTE
+
+Patient Name: Jane Doe
+Date of Service: March 5, 2024
+Provider: Dr. Karen Mitchell, PT, DPT
+Facility: Springfield Rehabilitation Center
+MRN: MED-2024-5567
+Claim Number: 2024-INS-00142
+
+SESSION TYPE: Follow-up
+
+TREATMENT PLAN
+
+Diagnosis: Lumbar disc herniation L4-L5 with left lower extremity radiculopathy
+Treatment Goal: Restore functional mobility, reduce pain to 4/10 or below,
+return to activities of daily living within 8 weeks.
+
+SUBJECTIVE
+
+Patient reports gradual improvement since last session.  Current pain level
+is 5/10, down from 7/10 at initial evaluation.  Pain is worst in the morning
+and after prolonged sitting.  Patient is now able to walk 20 minutes without
+significant increase in symptoms.  Sleep remains disrupted 2-3 nights per week.
+
+OBJECTIVE
+
+Lumbar ROM:
+  Flexion:  60 degrees (improved from 45 degrees)
+  Extension: 15 degrees (unchanged)
+  Left lateral flexion: 20 degrees (improved from 15 degrees)
+
+Strength testing:
+  Left hip flexor: 4/5 (improved from 3+/5)
+  Left knee extension: 4/5 (improved from 3+/5)
+  Left ankle dorsiflexion: 5/5 (normal)
+
+Straight leg raise:
+  Left: positive at 55 degrees (improved from 40 degrees)
+  Right: negative
+
+Gait: Mildly antalgic, improved cadence and stride length
+
+TREATMENT PROVIDED
+
+1. Manual therapy — lumbar mobilization grade III, 10 minutes
+2. Therapeutic exercise — core stabilization program, 20 minutes
+3. Neuromuscular re-education — proprioceptive training, 10 minutes
+4. Modalities — electrical stimulation to left lumbar paraspinals, 15 minutes
+
+Total treatment time: 55 minutes
+CPT codes: 97140, 97110, 97112, 97014
+
+FUNCTIONAL STATUS
+
+Patient is now independent with home exercise program.  Able to perform
+desk work for 4 hours with scheduled breaks (previously limited to 2 hours).
+Stair climbing improved — ascending and descending without handrail.
+
+ASSESSMENT
+
+Patient is making steady progress toward treatment goals.  Pain reduction
+and ROM improvements are consistent with expected recovery timeline.
+Functional gains support continued physical therapy 2x per week.
+
+PLAN
+
+1. Continue physical therapy 2x per week for 4 more weeks
+2. Progress core stabilization exercises to phase 2
+3. Add aquatic therapy 1x per week if available
+4. Follow-up with referring physician Dr. Sarah Williams in 2 weeks
+5. Re-evaluate functional status at session 12
+
+NEXT APPOINTMENT: March 8, 2024
+
+Provider Signature: Dr. Karen Mitchell, PT, DPT
+Date: March 5, 2024
