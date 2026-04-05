@@ -41,11 +41,15 @@ def chunk_text(doc: Document, config: ChunkConfig | None = None) -> Document:
     """Split doc.pages into chunks using the requested strategy.
 
     Attaches both doc.chunks and doc.chunk_meta.
+
+    page_bounded avoids joining all pages into one string (safe for very
+    large documents).  fixed_size and paragraph require the joined text
+    but the join is deferred until actually needed.
     """
     cfg = config or ChunkConfig()
-    full_text = "\n\n".join(p.text for p in doc.pages)
 
-    if not full_text.strip():
+    has_text = any(p.text.strip() for p in doc.pages)
+    if not has_text:
         doc.chunks = []
         doc.chunk_meta = ChunkMeta(
             strategy=cfg.strategy,
@@ -57,14 +61,16 @@ def chunk_text(doc: Document, config: ChunkConfig | None = None) -> Document:
         doc.status = DocumentStatus.CHUNKED
         return doc
 
-    page_ranges = _build_page_offset_map(doc)
-
-    if cfg.strategy == ChunkStrategy.PARAGRAPH:
-        chunks = _chunk_paragraph(doc, full_text, page_ranges, cfg)
-    elif cfg.strategy == ChunkStrategy.PAGE_BOUNDED:
+    if cfg.strategy == ChunkStrategy.PAGE_BOUNDED:
+        page_ranges = _build_page_offset_map(doc)
         chunks = _chunk_page_bounded(doc, page_ranges, cfg)
     else:
-        chunks = _chunk_fixed_size(doc, full_text, page_ranges, cfg)
+        full_text = _join_pages(doc)
+        page_ranges = _build_page_offset_map(doc)
+        if cfg.strategy == ChunkStrategy.PARAGRAPH:
+            chunks = _chunk_paragraph(doc, full_text, page_ranges, cfg)
+        else:
+            chunks = _chunk_fixed_size(doc, full_text, page_ranges, cfg)
 
     is_truncated = False
     if cfg.max_chunks is not None and len(chunks) > cfg.max_chunks:
@@ -231,6 +237,15 @@ def _chunk_page_bounded(
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+def _join_pages(doc: Document) -> str:
+    """Build the full-text string by joining all pages.
+
+    Isolated so it is easy to find the one place where a potentially huge
+    allocation happens.  For page_bounded strategy this is never called.
+    """
+    return "\n\n".join(p.text for p in doc.pages)
+
 
 def _make_chunk(
     doc_id: str,

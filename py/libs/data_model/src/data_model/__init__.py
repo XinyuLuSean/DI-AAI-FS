@@ -4,6 +4,7 @@ from data_model.document import (
     Document,
     DocumentChunk,
     DocumentPage,
+    DocumentSizeCategory,
     DocumentSource,
     DocumentStatus,
     DocumentType,
@@ -14,10 +15,12 @@ from data_model.document import (
     RoutingRule,
 )
 from data_model.extraction import (
+    ChunkSelectionStrategy,
     EvidenceReference,
     ExtractionMethod,
     ExtractionResult,
     StructuredField,
+    SummarisationMeta,
     SummaryResult,
 )
 
@@ -27,9 +30,11 @@ __all__ = [
     "Document",
     "DocumentChunk",
     "DocumentPage",
+    "DocumentSizeCategory",
     "DocumentSource",
     "DocumentStatus",
     "DocumentType",
+    "ChunkSelectionStrategy",
     "EvidenceReference",
     "ExtractionMethod",
     "ExtractionResult",
@@ -39,5 +44,6 @@ __all__ = [
     "RoutingResult",
     "RoutingRule",
     "StructuredField",
+    "SummarisationMeta",
     "SummaryResult",
 ]

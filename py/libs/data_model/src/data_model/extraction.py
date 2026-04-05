@@ -27,6 +27,16 @@ class ExtractionMethod(StrEnum):
     MANUAL = "manual"
 
 
+class ChunkSelectionStrategy(StrEnum):
+    """How chunks are selected for LLM context budget."""
+
+    HEAD = "head"
+    TAIL = "tail"
+    HEAD_TAIL = "head_tail"
+    SAMPLED = "sampled"
+    ROUTING_AWARE = "routing_aware"
+
+
 class EvidenceReference(BaseModel):
     """Links an AI output back to the source chunk that supports it."""
 
@@ -55,6 +65,24 @@ class SummaryResult(BaseModel):
     evidence: list[EvidenceReference] = Field(default_factory=list)
 
 
+class SummarisationMeta(BaseModel):
+    """Tracks what the LLM actually saw vs what was available.
+
+    This is the key transparency record for large-document handling —
+    when the summary only covers 5% of a 2 000-page PDF, the user and
+    reviewer should know.
+    """
+
+    total_chunks_available: int = 0
+    total_pages_available: int = 0
+    chunks_sent_to_llm: int = 0
+    pages_covered_by_selection: list[int] = Field(default_factory=list)
+    coverage_ratio: float = 0.0
+    selection_strategy: ChunkSelectionStrategy = ChunkSelectionStrategy.HEAD
+    is_partial: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
 class ExtractionResult(BaseModel):
     """Complete output of one extraction/summarisation run."""
 
@@ -63,5 +91,6 @@ class ExtractionResult(BaseModel):
     model_used: str = ""
     structured_fields: list[StructuredField] = Field(default_factory=list)
     summary: SummaryResult | None = None
+    summarisation_meta: SummarisationMeta | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     processing_time_ms: int = 0

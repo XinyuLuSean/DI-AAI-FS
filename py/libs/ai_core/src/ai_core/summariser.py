@@ -7,6 +7,7 @@ This is the first AI task in the vertical slice.  It demonstrates:
 - evidence references back to source chunks
 - separation between prompt definition and execution
 - grounding by pre-extracted deterministic fields (when available)
+- budget-aware chunk selection (Phase 6) with explicit coverage reporting
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import time
 from typing import Any
 
 from data_model import (
+    ChunkSelectionStrategy,
     Document,
     EvidenceReference,
     ExtractionResult,
@@ -28,23 +30,30 @@ from ai_core.prompts import (
     SUMMARISE_SYSTEM,
     build_summarise_user_prompt,
 )
+from di_core.chunk_selector import select_chunks_for_llm
 
 
 def summarise_document(
     doc: Document,
     llm: LLMAdapter | None = None,
     max_chunks: int = 10,
+    chunk_selection: ChunkSelectionStrategy = ChunkSelectionStrategy.HEAD,
     grounding_fields: list[StructuredField] | None = None,
 ) -> ExtractionResult:
-    """Run summarisation over the document's chunks and return structured output.
+    """Run summarisation over a budget-selected subset of chunks.
 
-    When grounding_fields are provided (from a prior deterministic extraction),
-    the LLM prompt is augmented so the summary stays consistent with known facts.
+    Instead of blindly taking the first N chunks, uses select_chunks_for_llm
+    which applies the requested strategy (head, tail, head_tail, sampled,
+    routing_aware) and produces a SummarisationMeta record so the caller
+    and user know exactly what the LLM saw vs what was available.
     """
     llm = llm or LLMAdapter()
     start = time.perf_counter_ns()
 
-    selected = doc.chunks[:max_chunks]
+    selected, summarisation_meta = select_chunks_for_llm(
+        doc, max_chunks=max_chunks, strategy=chunk_selection,
+    )
+
     chunk_dicts = [{"chunk_id": c.chunk_id, "text": c.text} for c in selected]
     chunk_map = {c.chunk_id: c for c in selected}
 
@@ -94,6 +103,7 @@ def summarise_document(
         model_used=llm.model,
         structured_fields=fields,
         summary=summary,
+        summarisation_meta=summarisation_meta,
         processing_time_ms=elapsed_ms,
     )
 

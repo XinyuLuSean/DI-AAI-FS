@@ -103,6 +103,19 @@ class RoutingResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class DocumentSizeCategory(StrEnum):
+    """Coarse size classification to drive processing strategies.
+
+    Thresholds are intentionally conservative — a "large" document should
+    trigger different chunk-selection and budget behaviour, not rejection.
+    """
+
+    SMALL = "small"          # ≤ 20 pages or ≤ 50 KB
+    MEDIUM = "medium"        # ≤ 200 pages or ≤ 2 MB
+    LARGE = "large"          # ≤ 2 000 pages or ≤ 50 MB
+    OVERSIZED = "oversized"  # > 2 000 pages or > 50 MB
+
+
 class DocumentSource(BaseModel):
     """Where the raw file lives."""
 
@@ -174,6 +187,7 @@ class Document(BaseModel):
     parse_meta: ParseMeta | None = None
     routing: RoutingResult | None = None
     chunk_meta: ChunkMeta | None = None
+    size_category: DocumentSizeCategory | None = None
     pages: list[DocumentPage] = Field(default_factory=list)
     chunks: list[DocumentChunk] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)

@@ -16,8 +16,8 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, HTTPException, Query, UploadFile
 
-from data_model import ChunkStrategy, Document, DocumentSource, DocumentStatus, ExtractionResult
-from di_core import ChunkConfig, chunk_text, extract_fields, parse_document, route_document
+from data_model import ChunkSelectionStrategy, ChunkStrategy, Document, DocumentSource, DocumentStatus, ExtractionResult
+from di_core import ChunkConfig, chunk_text, classify_document_size, extract_fields, parse_document, route_document
 from storage import LocalStorage
 
 from py_api.core.config import get_settings
@@ -124,6 +124,20 @@ async def upload_document(
             pages_covered=len(doc.chunk_meta.page_coverage),
         )
 
+    size_guard = classify_document_size(doc)
+    doc.size_category = size_guard.category
+    logger.info(
+        "document.size_classified",
+        doc_id=doc.id,
+        category=size_guard.category.value,
+        pages=size_guard.page_count,
+        chars=size_guard.total_chars,
+        chunks=size_guard.chunk_count,
+        file_bytes=size_guard.file_size_bytes,
+        recommended_llm_chunks=size_guard.recommended_max_llm_chunks,
+        warnings=size_guard.warnings,
+    )
+
     _documents[doc.id] = doc
     return doc
 
@@ -138,7 +152,11 @@ async def get_document(document_id: str) -> Document:
 
 @router.get("/{document_id}/chunks/debug")
 async def debug_chunks(document_id: str) -> dict[str, Any]:
-    """Return a compact debug view of a document's chunks for inspection."""
+    """Return a compact debug view of a document's chunks for inspection.
+
+    Includes size classification and summarisation-readiness information
+    so large-document behavior is transparent.
+    """
     doc = _documents.get(document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -160,9 +178,13 @@ async def debug_chunks(document_id: str) -> dict[str, Any]:
             "preview": preview,
         })
 
+    size_guard = classify_document_size(doc)
+
     return {
         "document_id": document_id,
         "filename": doc.filename,
+        "size_category": doc.size_category,
+        "size_guard": size_guard.model_dump(),
         "chunk_meta": doc.chunk_meta.model_dump() if doc.chunk_meta else None,
         "chunks": chunk_debug,
     }
@@ -194,12 +216,23 @@ async def extract(document_id: str) -> ExtractionResult:
 async def summarise(
     document_id: str,
     extraction_id: str | None = Query(default=None),
+    max_chunks: int = Query(default=10, ge=1, le=100),
+    chunk_selection: ChunkSelectionStrategy = Query(
+        default=ChunkSelectionStrategy.HEAD,
+    ),
 ) -> ExtractionResult:
     """Run AI summarisation on a previously uploaded document.
 
     When extraction_id is provided, the prior deterministic extraction's fields
     are injected into the LLM prompt as grounding constraints so the summary
     stays consistent with known facts.
+
+    chunk_selection controls how chunks are chosen for the LLM context budget:
+      head          — first N chunks (default, fast, biased to beginning)
+      tail          — last N chunks
+      head_tail     — first N/2 + last N/2
+      sampled       — evenly spaced across all chunks
+      routing_aware — adapts based on document type
     """
     doc = _documents.get(document_id)
     if doc is None:
@@ -221,15 +254,26 @@ async def summarise(
                 grounding_fields=len(grounding_fields),
             )
 
-    result = summarise_document(doc, grounding_fields=grounding_fields)
+    result = summarise_document(
+        doc,
+        max_chunks=max_chunks,
+        chunk_selection=chunk_selection,
+        grounding_fields=grounding_fields,
+    )
     _extractions[result.id] = result
 
+    sm = result.summarisation_meta
     logger.info(
         "document.summarised",
         doc_id=document_id,
         model=result.model_used,
         time_ms=result.processing_time_ms,
         grounded=grounding_fields is not None,
+        selection_strategy=sm.selection_strategy.value if sm else None,
+        chunks_sent=sm.chunks_sent_to_llm if sm else None,
+        total_available=sm.total_chunks_available if sm else None,
+        coverage=sm.coverage_ratio if sm else None,
+        is_partial=sm.is_partial if sm else None,
     )
     return result
 
