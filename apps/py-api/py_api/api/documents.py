@@ -45,10 +45,12 @@ from data_model import (
 )
 from di_core import (
     ChunkConfig,
+    ComparisonReport,
     LexicalRanker,
     SalienceRanker,
     chunk_text,
     classify_document_size,
+    compare_strategies,
     create_reviewable_output,
     enrich_chunks_for_retrieval,
     extract_fields,
@@ -106,6 +108,11 @@ class SearchResult(BaseModel):
     query: str
     ranker: str
     results: list[EvidenceReference]
+
+
+class CompareRequest(BaseModel):
+    query: str
+    max_chunks: int = Field(default=5, ge=1, le=50)
 
 
 class SubmitReviewRequest(BaseModel):
@@ -523,6 +530,39 @@ async def search_chunks(document_id: str, body: SearchRequest) -> SearchResult:
     )
 
 
+@router.post("/{document_id}/retrieval-compare")
+async def retrieval_compare(
+    document_id: str,
+    body: CompareRequest,
+) -> ComparisonReport:
+    """Compare chunk selection strategies side-by-side for a given query.
+
+    Runs all strategies (head, head_tail, sampled, routing_aware, query_ranked)
+    against the same document and query, then reports which chunks each selects,
+    overlap between strategies, and a plain-English recommendation.
+    """
+    doc = _documents.get(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.chunks:
+        raise HTTPException(status_code=422, detail="Document has no chunks")
+
+    report = compare_strategies(
+        doc, query=body.query, max_chunks=body.max_chunks,
+    )
+
+    logger.info(
+        "document.retrieval_compare",
+        doc_id=document_id,
+        query=body.query[:80],
+        max_chunks=body.max_chunks,
+        strategies=len(report.strategies),
+        recommendation=report.recommendation[:120],
+    )
+
+    return report
+
+
 @router.post("/{document_id}/summarise")
 async def summarise(
     document_id: str,
@@ -531,6 +571,7 @@ async def summarise(
     chunk_selection: ChunkSelectionStrategy = Query(
         default=ChunkSelectionStrategy.HEAD,
     ),
+    query: str | None = Query(default=None),
 ) -> ExtractionResult:
     """Run AI summarisation on a previously uploaded document.
 
@@ -544,6 +585,7 @@ async def summarise(
       head_tail     — first N/2 + last N/2
       sampled       — evenly spaced across all chunks
       routing_aware — adapts based on document type
+      query_ranked  — rank by relevance to query (requires query parameter)
     """
     doc = _documents.get(document_id)
     if doc is None:
@@ -570,6 +612,7 @@ async def summarise(
         max_chunks=max_chunks,
         chunk_selection=chunk_selection,
         grounding_fields=grounding_fields,
+        query=query,
     )
     _extractions[result.id] = result
     reviewable = _ensure_reviewable(result.id)
@@ -599,6 +642,7 @@ async def chronology(
     chunk_selection: ChunkSelectionStrategy = Query(
         default=ChunkSelectionStrategy.HEAD,
     ),
+    query: str | None = Query(default=None),
 ) -> ExtractionResult:
     """Run AI chronology extraction on a previously uploaded document.
 
@@ -606,7 +650,7 @@ async def chronology(
     references back to source chunks.
 
     chunk_selection controls how chunks are chosen for the LLM context budget
-    (same options as /summarise).
+    (same options as /summarise, including query_ranked with a query parameter).
     """
     doc = _documents.get(document_id)
     if doc is None:
@@ -620,6 +664,7 @@ async def chronology(
         doc,
         max_chunks=max_chunks,
         chunk_selection=chunk_selection,
+        query=query,
     )
     _extractions[result.id] = result
     reviewable = _ensure_reviewable(result.id)

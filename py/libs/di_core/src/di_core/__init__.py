@@ -8,6 +8,7 @@ from di_core.parser import parse_document
 from di_core.pipeline_trace import log_pipeline_summary, trace_stage
 from di_core.postprocessor import PostprocessMeta, postprocess_extraction
 from di_core.preprocessor import PreprocessConfig, PreprocessMeta, preprocess_document
+from di_core.retrieval_compare import ComparisonReport, compare_strategies
 from di_core.ranker import (
     ChunkRanker,
     EmbeddingRanker,
@@ -39,11 +40,13 @@ __all__ = [
     "TextractAdapter",
     "chunk_text",
     "ChunkRanker",
+    "ComparisonReport",
     "EmbeddingRanker",
     "LexicalRanker",
     "RankedChunk",
     "SalienceRanker",
     "classify_document_size",
+    "compare_strategies",
     "classify_review_triggers",
     "compute_review_priority",
     "create_reviewable_output",

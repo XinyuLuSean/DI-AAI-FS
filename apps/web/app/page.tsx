@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { UploadPanel } from "@/components/upload-panel";
 import { DocumentViewer } from "@/components/document-viewer";
 import { ExtractionResult } from "@/components/extraction-result";
+import { RetrievalCompare } from "@/components/retrieval-compare";
 import {
   extractChronology,
   extractDocument,
@@ -175,12 +176,6 @@ export default function Home() {
             <div className="px-3 py-6 text-center text-xs text-gray-400">
               No documents yet.
               <br />
-              <button
-                onClick={() => setShowUpload(true)}
-                className="mt-2 text-blue-500 underline"
-              >
-                Upload one
-              </button>
             </div>
           )}
         </div>
@@ -407,6 +402,11 @@ export default function Home() {
                 <ExtractionResult result={activeChronology} />
               </section>
             )}
+
+            {/* Retrieval strategy comparison (Phase 5) */}
+            <section>
+              <RetrievalCompare documentId={document.id} />
+            </section>
           </>
         )}
 

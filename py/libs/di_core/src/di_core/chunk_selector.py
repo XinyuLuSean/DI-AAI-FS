@@ -15,6 +15,9 @@ Strategies:
                     billing → head (key info is usually early)
                     medical → sampled (information distributed throughout)
                     default → head_tail
+  query_ranked — rank all chunks against a query using SalienceRanker,
+                 select the top-N most relevant.  Requires a query string.
+                 Falls back to head_tail when no query is provided.
 """
 
 from __future__ import annotations
@@ -32,8 +35,12 @@ def select_chunks_for_llm(
     doc: Document,
     max_chunks: int = 10,
     strategy: ChunkSelectionStrategy = ChunkSelectionStrategy.HEAD,
+    query: str | None = None,
 ) -> tuple[list[DocumentChunk], SummarisationMeta]:
     """Select chunks and build a transparency record of what was chosen.
+
+    When strategy is QUERY_RANKED, chunks are ranked by relevance to query
+    using SalienceRanker and the top max_chunks are selected.
 
     Returns (selected_chunks, summarisation_meta) so the caller can pass
     both to the LLM and to the response.
@@ -49,6 +56,24 @@ def select_chunks_for_llm(
         )
 
     effective_strategy = strategy
+
+    if strategy == ChunkSelectionStrategy.QUERY_RANKED:
+        if query:
+            selected = _apply_query_ranked(all_chunks, max_chunks, query)
+            meta = _build_meta(
+                selected, total, total_pages, strategy, is_partial=True,
+            )
+            meta.warnings.append(
+                f"Query-ranked selection for: '{query[:80]}'"
+            )
+            return selected, meta
+        else:
+            effective_strategy = ChunkSelectionStrategy.HEAD_TAIL
+            meta_extra = (
+                "Query-ranked requested but no query provided — "
+                "fell back to head_tail"
+            )
+
     if strategy == ChunkSelectionStrategy.ROUTING_AWARE:
         effective_strategy = _pick_routing_strategy(doc)
 
@@ -63,8 +88,23 @@ def select_chunks_for_llm(
             f"for document type "
             f"'{doc.routing.predicted_type.value if doc.routing else 'unknown'}'"
         )
+    if strategy == ChunkSelectionStrategy.QUERY_RANKED and not query:
+        meta.warnings.append(meta_extra)  # noqa: F821 — defined in the branch above
 
     return selected, meta
+
+
+def _apply_query_ranked(
+    chunks: list[DocumentChunk],
+    budget: int,
+    query: str,
+) -> list[DocumentChunk]:
+    """Rank chunks by query relevance and return the top-budget."""
+    from di_core.ranker import SalienceRanker
+
+    ranker = SalienceRanker()
+    ranked = ranker.rank(chunks, query, top_k=budget)
+    return [r.chunk for r in ranked]
 
 
 def _apply_strategy(

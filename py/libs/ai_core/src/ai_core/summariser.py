@@ -60,10 +60,14 @@ def summarise_document(
     chunk_selection: ChunkSelectionStrategy = ChunkSelectionStrategy.HEAD,
     grounding_fields: list[StructuredField] | None = None,
     prompt_template: PromptTemplate | None = None,
+    query: str | None = None,
 ) -> ExtractionResult:
     """Run summarisation over a budget-selected subset of chunks.
 
     Pipeline: select → prompt → LLM → validate → audit grounding → package evidence.
+
+    When query is provided with QUERY_RANKED strategy, chunks are selected
+    by relevance to the query rather than by position.
 
     If prompt_template is not provided, the appropriate default is chosen
     based on whether grounding_fields are present.
@@ -73,7 +77,7 @@ def summarise_document(
 
     # ── Chunk selection ───────────────────────────────────────────────
     selected, summarisation_meta = select_chunks_for_llm(
-        doc, max_chunks=max_chunks, strategy=chunk_selection,
+        doc, max_chunks=max_chunks, strategy=chunk_selection, query=query,
     )
 
     chunk_dicts = [{"chunk_id": c.chunk_id, "text": c.text} for c in selected]

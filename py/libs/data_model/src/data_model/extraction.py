@@ -51,6 +51,7 @@ class ChunkSelectionStrategy(StrEnum):
     HEAD_TAIL = "head_tail"
     SAMPLED = "sampled"
     ROUTING_AWARE = "routing_aware"
+    QUERY_RANKED = "query_ranked"
 
 
 class EvidenceReference(BaseModel):

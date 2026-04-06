@@ -352,3 +352,31 @@ export interface CorrectionResponse {
   feedback_signals_generated: number;
   review_status: string;
 }
+
+// ── Phase 5: Retrieval Comparison Types ──────────────────────────────────
+
+export interface ChunkSelectionInfo {
+  chunk_id: string;
+  index: number;
+  page_numbers: number[];
+  section_label: string;
+  relevance_score: number;
+  text_preview: string;
+}
+
+export interface StrategyResult {
+  strategy: string;
+  chunks: ChunkSelectionInfo[];
+  chunk_ids: string[];
+}
+
+export interface ComparisonReport {
+  document_id: string;
+  query: string;
+  max_chunks: number;
+  total_chunks_available: number;
+  strategies: StrategyResult[];
+  overlap_matrix: Record<string, Record<string, number>>;
+  unique_to: Record<string, string[]>;
+  recommendation: string;
+}

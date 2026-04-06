@@ -83,6 +83,28 @@ export async function extractChronology(documentId: string) {
   return res.json();
 }
 
+export async function compareRetrievalStrategies(
+  documentId: string,
+  query: string,
+  maxChunks: number = 5,
+) {
+  const res = await fetch(
+    `${API_BASE}/documents/${documentId}/retrieval-compare`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, max_chunks: maxChunks }),
+    },
+  );
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(extractErrorMessage(body.detail, `Comparison failed (${res.status})`));
+  }
+
+  return res.json();
+}
+
 // ── Document & extraction list API ───────────────────────────────────────
 
 export async function fetchDocuments() {

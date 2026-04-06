@@ -145,17 +145,21 @@ def extract_chronology(
     max_chunks: int = 10,
     chunk_selection: ChunkSelectionStrategy = ChunkSelectionStrategy.HEAD,
     prompt_template: PromptTemplate | None = None,
+    query: str | None = None,
 ) -> ExtractionResult:
     """Run chronology extraction over a budget-selected subset of chunks.
 
     Pipeline: select → prompt → LLM → validate → audit grounding → package result.
+
+    When query is provided with QUERY_RANKED strategy, chunks are selected
+    by relevance to the query rather than by position.
     """
     llm = llm or LLMAdapter()
     start = time.perf_counter_ns()
 
     # ── Chunk selection ───────────────────────────────────────────────
     selected, summarisation_meta = select_chunks_for_llm(
-        doc, max_chunks=max_chunks, strategy=chunk_selection,
+        doc, max_chunks=max_chunks, strategy=chunk_selection, query=query,
     )
 
     chunk_dicts = [{"chunk_id": c.chunk_id, "text": c.text} for c in selected]
