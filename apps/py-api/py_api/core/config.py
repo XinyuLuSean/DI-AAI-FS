@@ -21,6 +21,9 @@ class Settings(BaseSettings):
 
     llm_model: str = "gpt-4o-mini"
     llm_provider: str = "openai"
+    llm_timeout_s: float = 20.0
+    llm_max_retries: int = 1
+    llm_retry_backoff_ms: int = 250
     openai_api_key: str = ""
 
     database_url: str = ""

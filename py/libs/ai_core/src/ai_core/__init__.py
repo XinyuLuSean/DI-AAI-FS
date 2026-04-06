@@ -1,4 +1,11 @@
-from ai_core.adapter import LLMAdapter
+from ai_core.adapter import LLMAdapter, LLMProviderError
+from ai_core.ops import (
+    AIOpsSnapshot,
+    get_ai_ops_snapshot,
+    record_ai_task_result,
+    record_retrieval_latency,
+    reset_ai_ops_metrics,
+)
 from ai_core.chronology import extract_chronology
 from ai_core.hierarchical import (
     ChunkFacts,
@@ -67,6 +74,7 @@ __all__ = [
     "HashEmbeddingAdapter",
     "HierarchicalResult",
     "LLMAdapter",
+    "LLMProviderError",
     "LiteLLMEmbeddingAdapter",
     "LLMChronologyOutput",
     "LLMSummarisationOutput",
@@ -88,16 +96,21 @@ __all__ = [
     "enrich_summarisation_meta",
     "extract_chunk_facts",
     "extract_chronology",
+    "get_ai_ops_snapshot",
     "get_prompt",
     "get_task",
     "list_prompt_registry",
     "list_prompts",
     "list_tasks",
+    "record_ai_task_result",
+    "record_retrieval_latency",
     "register_prompt",
     "register_task",
+    "reset_ai_ops_metrics",
     "run_ai_task",
     "hierarchical_summarise",
     "summarise_document",
     "validate_chronology_output",
     "validate_summarisation_output",
+    "AIOpsSnapshot",
 ]

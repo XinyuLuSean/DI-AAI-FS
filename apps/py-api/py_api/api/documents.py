@@ -22,6 +22,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import structlog
@@ -204,6 +205,34 @@ class ExtractionListItem(BaseModel):
 def _get_storage() -> LocalStorage:
     settings = get_settings()
     return LocalStorage(base_dir=settings.storage_local_path)
+
+
+def _raise_provider_http_error(exc: Exception, *, operation: str) -> None:
+    from ai_core import LLMProviderError
+
+    if not isinstance(exc, LLMProviderError):
+        raise exc
+
+    logger.warning(
+        "document.ai_provider_error",
+        operation=operation,
+        provider=exc.provider,
+        model=exc.model,
+        retryable=exc.retryable,
+        attempts=exc.attempts,
+        error=str(exc)[:200],
+    )
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "message": f"{operation} failed due to upstream AI provider error",
+            "provider": exc.provider,
+            "model": exc.model,
+            "retryable": exc.retryable,
+            "attempts": exc.attempts,
+            "error": str(exc),
+        },
+    ) from exc
 
 
 @router.post("/upload")
@@ -540,7 +569,13 @@ async def search_chunks(document_id: str, body: SearchRequest) -> SearchResult:
         raise HTTPException(status_code=422, detail="Document has no chunks")
 
     ranker_impl = SalienceRanker() if body.ranker == "salience" else LexicalRanker()
+    t0 = time.perf_counter_ns()
     ranked = rank_chunks(doc.chunks, body.query, ranker=ranker_impl, top_k=body.top_k)
+    retrieval_ms = int((time.perf_counter_ns() - t0) / 1_000_000)
+
+    from ai_core import record_retrieval_latency
+
+    record_retrieval_latency(retrieval_ms)
 
     scores = {r.chunk.chunk_id: r.score for r in ranked}
     evidence = package_evidence(
@@ -555,6 +590,7 @@ async def search_chunks(document_id: str, body: SearchRequest) -> SearchResult:
         ranker=body.ranker,
         results=len(evidence),
         top_score=ranked[0].score if ranked else 0.0,
+        retrieval_ms=retrieval_ms,
     )
 
     return SearchResult(
@@ -582,6 +618,7 @@ async def retrieval_compare(
     if not doc.chunks:
         raise HTTPException(status_code=422, detail="Document has no chunks")
 
+    t0 = time.perf_counter_ns()
     if body.include_hybrid:
         report = compare_with_hybrid(
             doc, query=body.query, max_chunks=body.max_chunks,
@@ -590,6 +627,11 @@ async def retrieval_compare(
         report = compare_strategies(
             doc, query=body.query, max_chunks=body.max_chunks,
         )
+    retrieval_ms = int((time.perf_counter_ns() - t0) / 1_000_000)
+
+    from ai_core import record_retrieval_latency
+
+    record_retrieval_latency(retrieval_ms)
 
     logger.info(
         "document.retrieval_compare",
@@ -598,6 +640,7 @@ async def retrieval_compare(
         max_chunks=body.max_chunks,
         strategies=len(report.strategies),
         recommendation=report.recommendation[:120],
+        retrieval_ms=retrieval_ms,
     )
 
     return report
@@ -638,7 +681,7 @@ async def summarise(
     if not doc.chunks:
         raise HTTPException(status_code=422, detail="Document has no chunks")
 
-    from ai_core import summarise_document
+    from ai_core import LLMProviderError, record_ai_task_result, summarise_document
     from ai_core.prompts import get_prompt
     from ai_core.adapter import LLMAdapter
 
@@ -660,18 +703,22 @@ async def summarise(
 
     llm = LLMAdapter(model=model) if model else None
 
-    result = summarise_document(
-        doc,
-        llm=llm,
-        max_chunks=max_chunks,
-        chunk_selection=chunk_selection,
-        grounding_fields=grounding_fields,
-        prompt_template=prompt_template,
-        query=query,
-        run_label=run_label,
-    )
+    try:
+        result = summarise_document(
+            doc,
+            llm=llm,
+            max_chunks=max_chunks,
+            chunk_selection=chunk_selection,
+            grounding_fields=grounding_fields,
+            prompt_template=prompt_template,
+            query=query,
+            run_label=run_label,
+        )
+    except LLMProviderError as exc:
+        _raise_provider_http_error(exc, operation="summarise")
     _extractions[result.id] = result
     reviewable = _ensure_reviewable(result.id)
+    record_ai_task_result(result)
 
     sm = result.summarisation_meta
     logger.info(
@@ -806,16 +853,20 @@ async def chronology(
     if not doc.chunks:
         raise HTTPException(status_code=422, detail="Document has no chunks")
 
-    from ai_core import extract_chronology
+    from ai_core import LLMProviderError, extract_chronology, record_ai_task_result
 
-    result = extract_chronology(
-        doc,
-        max_chunks=max_chunks,
-        chunk_selection=chunk_selection,
-        query=query,
-    )
+    try:
+        result = extract_chronology(
+            doc,
+            max_chunks=max_chunks,
+            chunk_selection=chunk_selection,
+            query=query,
+        )
+    except LLMProviderError as exc:
+        _raise_provider_http_error(exc, operation="chronology")
     _extractions[result.id] = result
     reviewable = _ensure_reviewable(result.id)
+    record_ai_task_result(result)
 
     sm = result.summarisation_meta
     logger.info(
@@ -851,11 +902,15 @@ async def hierarchical_summarise_endpoint(
     if not doc.chunks:
         raise HTTPException(status_code=422, detail="Document has no chunks")
 
-    from ai_core import hierarchical_summarise
+    from ai_core import LLMProviderError, hierarchical_summarise, record_ai_task_result
 
-    result = hierarchical_summarise(doc)
+    try:
+        result = hierarchical_summarise(doc)
+    except LLMProviderError as exc:
+        _raise_provider_http_error(exc, operation="hierarchical_summarise")
     _extractions[result.id] = result
     _ensure_reviewable(result.id)
+    record_ai_task_result(result)
 
     logger.info(
         "document.hierarchical_summarised",
