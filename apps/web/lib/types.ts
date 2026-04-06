@@ -188,7 +188,59 @@ export interface ChronologyResult {
   grounding_coverage: number;
 }
 
-export type OutputType = "deterministic" | "ai_summary" | "ai_chronology";
+export type OutputType =
+  | "deterministic"
+  | "ai_summary"
+  | "ai_chronology"
+  | "ai_classification"
+  | "semantic_match";
+
+export interface ClassificationSignal {
+  name: string;
+  value: string;
+  weight: number;
+  supports_label: boolean;
+}
+
+export interface ClassificationResult {
+  task_name: string;
+  label: string;
+  confidence: number;
+  method: string;
+  rationale: string[];
+  signals: ClassificationSignal[];
+}
+
+export interface SemanticMatch {
+  field_name: string;
+  field_value: string;
+  matched_chunk_id: string;
+  grounded: boolean;
+  combined_score: number;
+  lexical_score: number;
+  vector_score: number;
+  page_numbers: number[];
+  section_label: string;
+  snippet: string;
+}
+
+export interface TopicCluster {
+  cluster_label: string;
+  chunk_ids: string[];
+  page_numbers: number[];
+  member_count: number;
+}
+
+export interface SemanticMatchResult {
+  task_name: string;
+  method: string;
+  threshold: number;
+  matched_count: number;
+  unmatched_count: number;
+  matches: SemanticMatch[];
+  clusters: TopicCluster[];
+  notes: string[];
+}
 
 export interface GroundingAudit {
   chunks_provided: number;
@@ -257,6 +309,8 @@ export interface ExtractionResponse {
   structured_fields: StructuredField[];
   summary: SummaryResult | null;
   chronology: ChronologyResult | null;
+  classification: ClassificationResult | null;
+  semantic_match: SemanticMatchResult | null;
   grounding_audit: GroundingAudit | null;
   summarisation_meta: SummarisationMeta | null;
   evidence_gap: EvidenceGapAnalysis | null;

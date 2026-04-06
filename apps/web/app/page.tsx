@@ -6,6 +6,7 @@ import { DocumentViewer } from "@/components/document-viewer";
 import { ExtractionResult } from "@/components/extraction-result";
 import { RetrievalCompare } from "@/components/retrieval-compare";
 import {
+  classifyDocument,
   extractChronology,
   extractDocument,
   fetchDocument,
@@ -13,6 +14,7 @@ import {
   fetchDocuments,
   getExtraction,
   hierarchicalSummarise,
+  semanticMatchDocument,
   summariseDocument,
 } from "@/lib/api";
 import type {
@@ -45,12 +47,16 @@ export default function Home() {
   const [activeExtraction, setActiveExtraction] = useState<ExtractionResponse | null>(null);
   const [activeSummary, setActiveSummary] = useState<ExtractionResponse | null>(null);
   const [activeChronology, setActiveChronology] = useState<ExtractionResponse | null>(null);
+  const [activeClassification, setActiveClassification] = useState<ExtractionResponse | null>(null);
+  const [activeSemanticMatch, setActiveSemanticMatch] = useState<ExtractionResponse | null>(null);
 
   const [extracting, setExtracting] = useState(false);
   const [summarising, setSummarising] = useState(false);
   const [chronologising, setChronologising] = useState(false);
+  const [classifying, setClassifying] = useState(false);
+  const [matching, setMatching] = useState(false);
   const [hierarchicalising, setHierarchicalising] = useState(false);
-  const loading = extracting || summarising || chronologising || hierarchicalising;
+  const loading = extracting || summarising || chronologising || classifying || matching || hierarchicalising;
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
 
@@ -75,6 +81,8 @@ export default function Home() {
     setActiveExtraction(null);
     setActiveSummary(null);
     setActiveChronology(null);
+    setActiveClassification(null);
+    setActiveSemanticMatch(null);
     setError(null);
     try {
       const [doc, exts] = await Promise.all([
@@ -88,6 +96,8 @@ export default function Home() {
         const det = exts.find((e: ExtractionListItem) => e.output_type === "deterministic");
         const sum = exts.find((e: ExtractionListItem) => e.output_type === "ai_summary");
         const chr = exts.find((e: ExtractionListItem) => e.output_type === "ai_chronology");
+        const cls = exts.find((e: ExtractionListItem) => e.output_type === "ai_classification");
+        const mat = exts.find((e: ExtractionListItem) => e.output_type === "semantic_match");
         if (det) {
           const full = await getExtraction(docId, det.id);
           setActiveExtraction(full);
@@ -99,6 +109,14 @@ export default function Home() {
         if (chr) {
           const full = await getExtraction(docId, chr.id);
           setActiveChronology(full);
+        }
+        if (cls) {
+          const full = await getExtraction(docId, cls.id);
+          setActiveClassification(full);
+        }
+        if (mat) {
+          const full = await getExtraction(docId, mat.id);
+          setActiveSemanticMatch(full);
         }
       }
     } catch (e: unknown) {
@@ -236,13 +254,21 @@ export default function Home() {
                               ? "bg-gray-100 text-gray-700"
                               : ext.output_type === "ai_chronology"
                                 ? "bg-indigo-100 text-indigo-700"
-                                : "bg-purple-100 text-purple-700"
+                                : ext.output_type === "ai_classification"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : ext.output_type === "semantic_match"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-purple-100 text-purple-700"
                           }`}>
                             {ext.output_type === "deterministic"
                               ? "Extraction"
                               : ext.output_type === "ai_chronology"
                                 ? "AI Chronology"
-                                : "AI Summary"}
+                                : ext.output_type === "ai_classification"
+                                  ? "Readiness Classifier"
+                                  : ext.output_type === "semantic_match"
+                                    ? "Semantic Match"
+                                    : "AI Summary"}
                           </span>
                           {rs && (
                             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${rs.bg} ${rs.text}`}>
@@ -310,6 +336,96 @@ export default function Home() {
                   </span>
                 </h2>
                 <ExtractionResult result={activeExtraction} />
+              </section>
+            )}
+
+            {activeExtraction && !activeClassification && (
+              <section className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-6">
+                <h2 className="mb-2 text-xl font-semibold">Classify Readiness</h2>
+                <p className="mb-4 text-sm text-gray-600">
+                  Combine parse quality, routing confidence, chunk coverage, and extracted fields
+                  into an explainable readiness label for downstream AI review decisions.
+                </p>
+                <button
+                  onClick={async () => {
+                    setClassifying(true);
+                    setError(null);
+                    try {
+                      const data: ExtractionResponse = await classifyDocument(
+                        document.id,
+                        activeExtraction.id,
+                      );
+                      setActiveClassification(data);
+                      await loadDocuments();
+                      await refreshExtractions();
+                    } catch (e: unknown) {
+                      setError(e instanceof Error ? e.message : "Classification failed");
+                    } finally {
+                      setClassifying(false);
+                    }
+                  }}
+                  disabled={classifying}
+                  className="rounded-lg bg-emerald-600 px-6 py-3 font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {classifying ? "Classifying..." : "Run Readiness Classification"}
+                </button>
+              </section>
+            )}
+
+            {activeClassification && (
+              <section>
+                <h2 className="mb-4 text-xl font-semibold">
+                  Readiness Classification
+                  <span className="ml-2 text-sm font-normal text-gray-400">
+                    {activeClassification.model_used} · {activeClassification.processing_time_ms}ms
+                  </span>
+                </h2>
+                <ExtractionResult result={activeClassification} />
+              </section>
+            )}
+
+            {activeExtraction && !activeSemanticMatch && (
+              <section className="rounded-xl border border-amber-100 bg-amber-50/50 p-6">
+                <h2 className="mb-2 text-xl font-semibold">Align Facts To Evidence</h2>
+                <p className="mb-4 text-sm text-gray-600">
+                  Match deterministic extracted fields back to the most relevant chunks using lexical
+                  overlap plus embeddings. This is a QA-oriented Applied AI task, not free-form generation.
+                </p>
+                <button
+                  onClick={async () => {
+                    setMatching(true);
+                    setError(null);
+                    try {
+                      const data: ExtractionResponse = await semanticMatchDocument(
+                        document.id,
+                        activeExtraction.id,
+                      );
+                      setActiveSemanticMatch(data);
+                      await loadDocuments();
+                      await refreshExtractions();
+                    } catch (e: unknown) {
+                      setError(e instanceof Error ? e.message : "Semantic matching failed");
+                    } finally {
+                      setMatching(false);
+                    }
+                  }}
+                  disabled={matching}
+                  className="rounded-lg bg-amber-600 px-6 py-3 font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {matching ? "Matching..." : "Run Semantic Matching"}
+                </button>
+              </section>
+            )}
+
+            {activeSemanticMatch && (
+              <section>
+                <h2 className="mb-4 text-xl font-semibold">
+                  Semantic Matching
+                  <span className="ml-2 text-sm font-normal text-gray-400">
+                    {activeSemanticMatch.model_used} · {activeSemanticMatch.processing_time_ms}ms
+                  </span>
+                </h2>
+                <ExtractionResult result={activeSemanticMatch} />
               </section>
             )}
 

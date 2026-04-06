@@ -83,6 +83,44 @@ export async function extractChronology(documentId: string) {
   return res.json();
 }
 
+export async function classifyDocument(
+  documentId: string,
+  extractionId?: string,
+) {
+  const params = new URLSearchParams();
+  if (extractionId) params.set("extraction_id", extractionId);
+  const qs = params.toString();
+  const url = `${API_BASE}/documents/${documentId}/classify${qs ? `?${qs}` : ""}`;
+
+  const res = await fetch(url, { method: "POST" });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(extractErrorMessage(body.detail, `Classification failed (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function semanticMatchDocument(
+  documentId: string,
+  extractionId?: string,
+) {
+  const params = new URLSearchParams();
+  if (extractionId) params.set("extraction_id", extractionId);
+  const qs = params.toString();
+  const url = `${API_BASE}/documents/${documentId}/semantic-match${qs ? `?${qs}` : ""}`;
+
+  const res = await fetch(url, { method: "POST" });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(extractErrorMessage(body.detail, `Semantic matching failed (${res.status})`));
+  }
+
+  return res.json();
+}
+
 export async function hierarchicalSummarise(documentId: string) {
   const url = `${API_BASE}/documents/${documentId}/hierarchical-summarise`;
   const res = await fetch(url, { method: "POST" });

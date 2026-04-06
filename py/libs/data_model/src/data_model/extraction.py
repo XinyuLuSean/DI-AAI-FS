@@ -41,6 +41,8 @@ class OutputType(StrEnum):
     DETERMINISTIC = "deterministic"
     AI_SUMMARY = "ai_summary"
     AI_CHRONOLOGY = "ai_chronology"
+    AI_CLASSIFICATION = "ai_classification"
+    SEMANTIC_MATCH = "semantic_match"
 
 
 class ChunkSelectionStrategy(StrEnum):
@@ -162,6 +164,63 @@ class GroundingAudit(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class ClassificationSignal(BaseModel):
+    """One explainable signal that contributed to a classification label."""
+
+    name: str
+    value: str
+    weight: float = 0.0
+    supports_label: bool = True
+
+
+class ClassificationResult(BaseModel):
+    """Explainable classification output for non-generative Applied AI tasks."""
+
+    task_name: str
+    label: str
+    confidence: float = 0.0
+    method: str = ""
+    rationale: list[str] = Field(default_factory=list)
+    signals: list[ClassificationSignal] = Field(default_factory=list)
+
+
+class SemanticMatch(BaseModel):
+    """One semantic alignment result between a structured fact and a chunk."""
+
+    field_name: str
+    field_value: str
+    matched_chunk_id: str = ""
+    grounded: bool = False
+    combined_score: float = 0.0
+    lexical_score: float = 0.0
+    vector_score: float = 0.0
+    page_numbers: list[int] = Field(default_factory=list)
+    section_label: str = ""
+    snippet: str = ""
+
+
+class TopicCluster(BaseModel):
+    """A lightweight grouping of related matched chunks for inspection."""
+
+    cluster_label: str
+    chunk_ids: list[str] = Field(default_factory=list)
+    page_numbers: list[int] = Field(default_factory=list)
+    member_count: int = 0
+
+
+class SemanticMatchResult(BaseModel):
+    """Semantic matching output tying structured facts back to document chunks."""
+
+    task_name: str
+    method: str = ""
+    threshold: float = 0.0
+    matched_count: int = 0
+    unmatched_count: int = 0
+    matches: list[SemanticMatch] = Field(default_factory=list)
+    clusters: list[TopicCluster] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
 class SummarisationMeta(BaseModel):
     """Tracks what the LLM actually saw vs what was available.
 
@@ -223,6 +282,8 @@ class ExtractionResult(BaseModel):
     # ── Open-ended narrative ─────────────────────────────────────────
     summary: SummaryResult | None = None
     chronology: ChronologyResult | None = None
+    classification: ClassificationResult | None = None
+    semantic_match: SemanticMatchResult | None = None
 
     # ── Evidence metadata ────────────────────────────────────────────
     grounding_audit: GroundingAudit | None = None

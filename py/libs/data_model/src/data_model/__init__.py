@@ -16,6 +16,8 @@ from data_model.document import (
     SectionLabel,
 )
 from data_model.extraction import (
+    ClassificationResult,
+    ClassificationSignal,
     ChronologyEvent,
     ChronologyResult,
     ChunkSelectionStrategy,
@@ -25,9 +27,12 @@ from data_model.extraction import (
     GroundedKeyPoint,
     GroundingAudit,
     OutputType,
+    SemanticMatch,
+    SemanticMatchResult,
     StructuredField,
     SummarisationMeta,
     SummaryResult,
+    TopicCluster,
 )
 from data_model.pipeline import (
     FailureKind,
@@ -55,6 +60,8 @@ from data_model.review import (
 __all__ = [
     "ChunkMeta",
     "ChunkStrategy",
+    "ClassificationResult",
+    "ClassificationSignal",
     "CorrectionRecord",
     "Document",
     "DocumentChunk",
@@ -89,12 +96,15 @@ __all__ = [
     "ReviewTriggerReason",
     "RoutingResult",
     "RoutingRule",
+    "SemanticMatch",
+    "SemanticMatchResult",
     "SectionLabel",
     "StageOutcome",
     "StructuredField",
     "SummarisationMeta",
     "SummaryCorrection",
     "SummaryResult",
+    "TopicCluster",
     "classify_extraction_outcome",
     "classify_parse_outcome",
     "classify_summary_outcome",

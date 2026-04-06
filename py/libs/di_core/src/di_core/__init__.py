@@ -36,6 +36,7 @@ from di_core.review_queue import (
 )
 from di_core.router import route_document
 from di_core.section_detector import detect_sections
+from di_core.semantic import align_extracted_fields_to_chunks, classify_document_readiness
 from di_core.size_guard import SizeGuardResult, classify_document_size
 
 __all__ = [
@@ -65,6 +66,8 @@ __all__ = [
     "VectorIndex",
     "VectorRanker",
     "VectorSearchResult",
+    "align_extracted_fields_to_chunks",
+    "classify_document_readiness",
     "classify_document_size",
     "compare_strategies",
     "compare_with_hybrid",

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type {
+  ClassificationResult,
   ChronologyEvent,
   CoverageReportData,
   EvidenceGapAnalysis,
@@ -9,6 +10,7 @@ import type {
   EvidenceReference,
   GroundedKeyPoint,
   GroundingAudit,
+  SemanticMatchResult,
   SummarisationMeta,
 } from "@/lib/types";
 
@@ -27,14 +29,22 @@ export function ExtractionResult({ result }: Props) {
               ? "bg-gray-100 text-gray-700"
               : result.output_type === "ai_chronology"
                 ? "bg-indigo-100 text-indigo-700"
-                : "bg-purple-100 text-purple-700"
+                : result.output_type === "ai_classification"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : result.output_type === "semantic_match"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-purple-100 text-purple-700"
           }`}
         >
           {result.output_type === "deterministic"
             ? "Deterministic"
             : result.output_type === "ai_chronology"
               ? "AI Chronology"
-              : "AI Summary"}
+              : result.output_type === "ai_classification"
+                ? "Readiness Classification"
+                : result.output_type === "semantic_match"
+                  ? "Semantic Match"
+                  : "AI Summary"}
         </span>
         <span>Model: {result.model_used}</span>
         {result.prompt_name && (
@@ -151,6 +161,14 @@ export function ExtractionResult({ result }: Props) {
         </div>
       )}
 
+      {result.classification && (
+        <ClassificationPanel classification={result.classification} />
+      )}
+
+      {result.semantic_match && (
+        <SemanticMatchPanel semanticMatch={result.semantic_match} />
+      )}
+
       {/* Chronology timeline (Phase 4) */}
       {result.chronology && result.chronology.events.length > 0 && (
         <ChronologyPanel events={result.chronology.events} coverage={result.chronology.grounding_coverage} />
@@ -197,6 +215,121 @@ export function ExtractionResult({ result }: Props) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClassificationPanel({ classification }: { classification: ClassificationResult }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="mb-3 flex items-center gap-3">
+        <h3 className="text-lg font-semibold">Classification</h3>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+            classification.label === "ready"
+              ? "bg-emerald-100 text-emerald-700"
+              : classification.label === "blocked"
+                ? "bg-red-100 text-red-700"
+                : "bg-amber-100 text-amber-700"
+          }`}
+        >
+          {classification.label}
+        </span>
+        <span className="text-xs text-gray-500">
+          {(classification.confidence * 100).toFixed(0)}% confidence
+        </span>
+      </div>
+
+      {classification.rationale.length > 0 && (
+        <div className="space-y-1 text-sm text-gray-700">
+          {classification.rationale.map((item, idx) => (
+            <p key={idx}>{item}</p>
+          ))}
+        </div>
+      )}
+
+      {classification.signals.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {classification.signals.map((signal, idx) => (
+            <span
+              key={`${signal.name}-${idx}`}
+              className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600"
+            >
+              {signal.name}: {signal.value} ({signal.weight.toFixed(1)})
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SemanticMatchPanel({ semanticMatch }: { semanticMatch: SemanticMatchResult }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <h3 className="text-lg font-semibold">Semantic Matching</h3>
+        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+          {semanticMatch.matched_count} matched
+        </span>
+        {semanticMatch.unmatched_count > 0 && (
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+            {semanticMatch.unmatched_count} below threshold
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {semanticMatch.matches.map((match, idx) => (
+          <div key={`${match.field_name}-${idx}`} className="rounded-lg border border-gray-100 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-900">{match.field_name}</span>
+              <span className="text-sm text-gray-600">{match.field_value}</span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                  match.grounded ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                }`}
+              >
+                {match.grounded ? "grounded" : "not grounded"}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
+              <span>combined {match.combined_score.toFixed(2)}</span>
+              <span>lexical {match.lexical_score.toFixed(2)}</span>
+              <span>vector {match.vector_score.toFixed(2)}</span>
+              {match.matched_chunk_id && <span className="font-mono">{match.matched_chunk_id}</span>}
+              {match.page_numbers.length > 0 && <span>pp. {match.page_numbers.join(", ")}</span>}
+              {match.section_label && <span>{match.section_label}</span>}
+            </div>
+            {match.snippet && (
+              <p className="mt-2 rounded border border-amber-100 bg-amber-50/50 px-3 py-2 text-xs text-gray-700">
+                {match.snippet}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {semanticMatch.clusters.length > 0 && (
+        <div className="mt-4">
+          <h4 className="mb-2 text-sm font-medium text-gray-500">Topic Groups</h4>
+          <div className="flex flex-wrap gap-2">
+            {semanticMatch.clusters.map((cluster, idx) => (
+              <span key={`${cluster.cluster_label}-${idx}`} className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">
+                {cluster.cluster_label} · {cluster.member_count} chunk{cluster.member_count !== 1 ? "s" : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {semanticMatch.notes.length > 0 && (
+        <div className="mt-4 space-y-1 text-xs text-gray-500">
+          {semanticMatch.notes.map((note, idx) => (
+            <p key={idx}>{note}</p>
+          ))}
         </div>
       )}
     </div>

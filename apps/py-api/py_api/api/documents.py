@@ -8,6 +8,8 @@ Endpoints:
   GET  /documents/{id}/extractions                      — list extractions for a document (with review status)
   POST /documents/{id}/extract                          — deterministic field extraction (no LLM) + postprocessing
   POST /documents/{id}/summarise                        — LLM-based summarisation
+  POST /documents/{id}/classify                         — explainable document readiness classification (Phase 8)
+  POST /documents/{id}/semantic-match                  — align extracted facts to supporting chunks (Phase 8)
   POST /documents/{id}/search                           — rank chunks against a query
   GET  /documents/{id}/chunks/debug                     — chunk inspection for debugging
   GET  /documents/{id}/extractions/{ext_id}             — retrieve extraction result
@@ -37,6 +39,7 @@ from data_model import (
     EvidenceReference,
     ExtractionResult,
     FeedbackSignal,
+    OutputType,
     PipelineStage,
     PipelineTrace,
     ReviewableOutput,
@@ -54,7 +57,9 @@ from di_core import (
     compare_with_hybrid,
     create_reviewable_output,
     enrich_chunks_for_retrieval,
+    align_extracted_fields_to_chunks,
     extract_fields,
+    classify_document_readiness,
     generate_feedback_signals,
     log_pipeline_summary,
     package_evidence,
@@ -94,6 +99,21 @@ def _ensure_reviewable(extraction_id: str) -> ReviewableOutput:
     )
     _reviewables[extraction_id] = reviewable
     return reviewable
+
+
+def _latest_extraction_for_document(
+    document_id: str,
+    output_type: OutputType | None = None,
+) -> ExtractionResult | None:
+    """Return the newest extraction for a document, optionally filtered by type."""
+    candidates = [
+        result for result in _extractions.values()
+        if result.document_id == document_id
+        and (output_type is None or result.output_type == output_type)
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda result: result.created_at)
 
 
 # ── Request / response models ─────────────────────────────────────────────
@@ -639,6 +659,96 @@ async def summarise(
         is_partial=sm.is_partial if sm else None,
         review_status=reviewable.status.value,
         review_triggers=[t.value for t in reviewable.trigger_reasons],
+    )
+    return result
+
+
+@router.post("/{document_id}/classify")
+async def classify(
+    document_id: str,
+    extraction_id: str | None = Query(default=None),
+) -> ExtractionResult:
+    """Run an explainable document-readiness classification.
+
+    This classification is intentionally non-generative. It combines parse,
+    routing, chunk, and optional extraction signals to decide whether the
+    document is ready, review-recommended, or blocked for higher-trust AI use.
+    """
+    doc = _documents.get(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    prior = None
+    if extraction_id:
+        prior = _extractions.get(extraction_id)
+        if prior is None or prior.document_id != document_id:
+            raise HTTPException(status_code=404, detail="Extraction not found")
+    else:
+        prior = _latest_extraction_for_document(document_id, OutputType.DETERMINISTIC)
+
+    result = classify_document_readiness(doc, extraction=prior)
+    _extractions[result.id] = result
+    reviewable = _ensure_reviewable(result.id)
+
+    logger.info(
+        "document.classified",
+        doc_id=document_id,
+        label=result.classification.label if result.classification else None,
+        confidence=result.classification.confidence if result.classification else None,
+        review_status=reviewable.status.value,
+    )
+    return result
+
+
+@router.post("/{document_id}/semantic-match")
+async def semantic_match(
+    document_id: str,
+    extraction_id: str | None = Query(default=None),
+    top_k: int = Query(default=1, ge=1, le=5),
+    threshold: float = Query(default=0.35, ge=0.0, le=1.0),
+) -> ExtractionResult:
+    """Align extracted fields to supporting chunks using semantic similarity.
+
+    Reuses deterministic structured outputs as the query anchors, then scores
+    every chunk by lexical overlap plus embedding similarity. This makes fact-
+    to-evidence QA more inspectable than free-form generation.
+    """
+    doc = _documents.get(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.chunks:
+        raise HTTPException(status_code=422, detail="Document has no chunks")
+
+    prior = None
+    if extraction_id:
+        prior = _extractions.get(extraction_id)
+        if prior is None or prior.document_id != document_id:
+            raise HTTPException(status_code=404, detail="Extraction not found")
+    else:
+        prior = _latest_extraction_for_document(document_id, OutputType.DETERMINISTIC)
+
+    if prior is None or not prior.structured_fields:
+        raise HTTPException(
+            status_code=422,
+            detail="Semantic matching requires a deterministic extraction with fields",
+        )
+
+    result = align_extracted_fields_to_chunks(
+        doc,
+        extraction=prior,
+        top_k=top_k,
+        threshold=threshold,
+    )
+    _extractions[result.id] = result
+    reviewable = _ensure_reviewable(result.id)
+
+    logger.info(
+        "document.semantic_matched",
+        doc_id=document_id,
+        matched=result.semantic_match.matched_count if result.semantic_match else None,
+        unmatched=result.semantic_match.unmatched_count if result.semantic_match else None,
+        threshold=threshold,
+        review_status=reviewable.status.value,
     )
     return result
 
