@@ -18,6 +18,10 @@ Strategies:
   query_ranked — rank all chunks against a query using SalienceRanker,
                  select the top-N most relevant.  Requires a query string.
                  Falls back to head_tail when no query is provided.
+  diversified  — section-aware selection that combines relevance scoring
+                 with coverage diversity.  Ensures chunks are drawn from
+                 multiple sections/page ranges instead of clustering in
+                 one region.  Falls back to sampled without a query.
 """
 
 from __future__ import annotations
@@ -74,6 +78,18 @@ def select_chunks_for_llm(
                 "fell back to head_tail"
             )
 
+    if strategy == ChunkSelectionStrategy.DIVERSIFIED:
+        selected = _apply_diversified(all_chunks, max_chunks, query)
+        meta = _build_meta(
+            selected, total, total_pages, strategy, is_partial=True,
+        )
+        sections_hit = {c.section_label or "(no section)" for c in selected}
+        meta.warnings.append(
+            f"Diversified selection across {len(sections_hit)} section(s): "
+            f"{', '.join(sorted(sections_hit))}"
+        )
+        return selected, meta
+
     if strategy == ChunkSelectionStrategy.ROUTING_AWARE:
         effective_strategy = _pick_routing_strategy(doc)
 
@@ -105,6 +121,69 @@ def _apply_query_ranked(
     ranker = SalienceRanker()
     ranked = ranker.rank(chunks, query, top_k=budget)
     return [r.chunk for r in ranked]
+
+
+def _apply_diversified(
+    chunks: list[DocumentChunk],
+    budget: int,
+    query: str | None,
+) -> list[DocumentChunk]:
+    """Section-aware selection combining relevance with diversity.
+
+    Algorithm:
+      1. Score all chunks by relevance (SalienceRanker if query, else position).
+      2. Group chunks by section_label (or page bucket if no sections).
+      3. Round-robin across groups, picking the highest-scored unselected chunk
+         from each group in turn, until budget is filled.
+
+    This ensures long documents get representative coverage instead of
+    clustering all context in one section.
+    """
+    from di_core.ranker import SalienceRanker
+
+    if query:
+        ranker = SalienceRanker()
+        ranked = ranker.rank(chunks, query, top_k=len(chunks))
+        scores = {r.chunk.chunk_id: r.score for r in ranked}
+    else:
+        scores = {c.chunk_id: 1.0 / (c.index + 1) for c in chunks}
+
+    groups: dict[str, list[DocumentChunk]] = {}
+    for c in chunks:
+        key = c.section_label or f"page-{c.page_numbers[0]}" if c.page_numbers else f"idx-{c.index // 5}"
+        groups.setdefault(key, []).append(c)
+
+    for key in groups:
+        groups[key].sort(key=lambda c: scores.get(c.chunk_id, 0.0), reverse=True)
+
+    group_keys = sorted(groups.keys(), key=lambda k: max(
+        scores.get(c.chunk_id, 0.0) for c in groups[k]
+    ), reverse=True)
+
+    selected: list[DocumentChunk] = []
+    selected_ids: set[str] = set()
+    group_cursors = {k: 0 for k in group_keys}
+
+    while len(selected) < budget:
+        picked_any = False
+        for key in group_keys:
+            if len(selected) >= budget:
+                break
+            cursor = group_cursors[key]
+            group = groups[key]
+            while cursor < len(group) and group[cursor].chunk_id in selected_ids:
+                cursor += 1
+            if cursor < len(group):
+                chunk = group[cursor]
+                selected.append(chunk)
+                selected_ids.add(chunk.chunk_id)
+                group_cursors[key] = cursor + 1
+                picked_any = True
+        if not picked_any:
+            break
+
+    selected.sort(key=lambda c: c.index)
+    return selected
 
 
 def _apply_strategy(

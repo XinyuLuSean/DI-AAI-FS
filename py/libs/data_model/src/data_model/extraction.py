@@ -52,6 +52,7 @@ class ChunkSelectionStrategy(StrEnum):
     SAMPLED = "sampled"
     ROUTING_AWARE = "routing_aware"
     QUERY_RANKED = "query_ranked"
+    DIVERSIFIED = "diversified"
 
 
 class EvidenceReference(BaseModel):
@@ -227,6 +228,7 @@ class ExtractionResult(BaseModel):
     grounding_audit: GroundingAudit | None = None
     summarisation_meta: SummarisationMeta | None = None
     evidence_gap: dict | None = None
+    coverage_report: dict | None = None
 
     # ── Warning / review status ──────────────────────────────────────
     validation_status: str = "valid"

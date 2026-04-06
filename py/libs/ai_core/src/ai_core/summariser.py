@@ -48,6 +48,7 @@ from ai_core.validation import (
     validate_summarisation_output,
 )
 from di_core.chunk_selector import select_chunks_for_llm
+from di_core.coverage import CoverageReport, build_coverage_report
 from di_core.evidence import package_evidence_from_ids
 
 logger = structlog.get_logger()
@@ -101,8 +102,14 @@ def summarise_document(
     if template is None:
         template = GROUNDED_SUMMARISE_V1 if grounding_fields else SUMMARISE_V1
 
+    # ── Coverage-aware input preparation (Phase 7B) ─────────────────
+    coverage_report = build_coverage_report(doc, selected)
+
     # ── Build and send prompt ────────────────────────────────────────
     user_prompt = build_summarise_user_prompt(chunk_dicts, extracted_field_dicts)
+
+    if coverage_report.coverage_level != "comprehensive":
+        user_prompt = coverage_report.disclosure_text + "\n\n" + user_prompt
 
     raw: dict[str, Any] = llm.complete_json(
         system_prompt=template.system_prompt,
@@ -216,6 +223,7 @@ def summarise_document(
         grounding_audit=grounding_audit_result,
         summarisation_meta=summarisation_meta,
         evidence_gap=evidence_gap.model_dump(),
+        coverage_report=coverage_report.model_dump(),
         validation_status=vr.status.value,
         validation_warnings=validation_warnings,
         processing_time_ms=elapsed_ms,

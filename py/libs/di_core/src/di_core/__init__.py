@@ -1,5 +1,6 @@
 from di_core.chunk_selector import select_chunks_for_llm
 from di_core.chunker import ChunkConfig, chunk_text
+from di_core.coverage import CoverageReport, build_coverage_report
 from di_core.enrichment import enrich_chunks_for_retrieval
 from di_core.evidence import package_evidence, package_evidence_from_ids
 from di_core.extractor import extract_fields
@@ -39,6 +40,8 @@ from di_core.size_guard import SizeGuardResult, classify_document_size
 
 __all__ = [
     "ChunkConfig",
+    "CoverageReport",
+    "build_coverage_report",
     "NoOpAdapter",
     "OCRAdapter",
     "PostprocessMeta",

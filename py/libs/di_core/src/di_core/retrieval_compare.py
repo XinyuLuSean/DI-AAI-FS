@@ -64,6 +64,7 @@ STRATEGIES_TO_COMPARE = [
     ChunkSelectionStrategy.SAMPLED,
     ChunkSelectionStrategy.ROUTING_AWARE,
     ChunkSelectionStrategy.QUERY_RANKED,
+    ChunkSelectionStrategy.DIVERSIFIED,
 ]
 
 

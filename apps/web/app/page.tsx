@@ -12,6 +12,7 @@ import {
   fetchDocumentExtractions,
   fetchDocuments,
   getExtraction,
+  hierarchicalSummarise,
   summariseDocument,
 } from "@/lib/api";
 import type {
@@ -48,7 +49,8 @@ export default function Home() {
   const [extracting, setExtracting] = useState(false);
   const [summarising, setSummarising] = useState(false);
   const [chronologising, setChronologising] = useState(false);
-  const loading = extracting || summarising || chronologising;
+  const [hierarchicalising, setHierarchicalising] = useState(false);
+  const loading = extracting || summarising || chronologising || hierarchicalising;
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
 
@@ -356,6 +358,37 @@ export default function Home() {
                   </span>
                 </h2>
                 <ExtractionResult result={activeSummary} />
+              </section>
+            )}
+
+            {/* Hierarchical summarisation — uses all chunks via MapReduce */}
+            {activeExtraction && !activeSummary && (
+              <section className="rounded-xl border border-teal-100 bg-teal-50/50 p-6">
+                <h2 className="mb-2 text-xl font-semibold">Hierarchical Summarise</h2>
+                <p className="mb-4 text-sm text-gray-600">
+                  Processes ALL chunks through a 3-stage pipeline (chunk → section → document).
+                  Best for long documents where standard summarisation only sees a small subset.
+                </p>
+                <button
+                  onClick={async () => {
+                    setHierarchicalising(true);
+                    setError(null);
+                    try {
+                      const data: ExtractionResponse = await hierarchicalSummarise(document.id);
+                      setActiveSummary(data);
+                      await loadDocuments();
+                      await refreshExtractions();
+                    } catch (e: unknown) {
+                      setError(e instanceof Error ? e.message : "Hierarchical summarisation failed");
+                    } finally {
+                      setHierarchicalising(false);
+                    }
+                  }}
+                  disabled={hierarchicalising}
+                  className="rounded-lg bg-teal-600 px-6 py-3 font-medium text-white transition hover:bg-teal-700 disabled:opacity-50"
+                >
+                  {hierarchicalising ? "Summarising (hierarchical)..." : "Hierarchical Summarise"}
+                </button>
               </section>
             )}
 

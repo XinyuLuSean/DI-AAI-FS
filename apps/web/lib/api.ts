@@ -83,6 +83,18 @@ export async function extractChronology(documentId: string) {
   return res.json();
 }
 
+export async function hierarchicalSummarise(documentId: string) {
+  const url = `${API_BASE}/documents/${documentId}/hierarchical-summarise`;
+  const res = await fetch(url, { method: "POST" });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(extractErrorMessage(body.detail, `Hierarchical summarisation failed (${res.status})`));
+  }
+
+  return res.json();
+}
+
 export async function compareRetrievalStrategies(
   documentId: string,
   query: string,

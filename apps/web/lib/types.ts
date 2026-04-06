@@ -260,6 +260,7 @@ export interface ExtractionResponse {
   grounding_audit: GroundingAudit | null;
   summarisation_meta: SummarisationMeta | null;
   evidence_gap: EvidenceGapAnalysis | null;
+  coverage_report: CoverageReportData | null;
   validation_status: ValidationStatus;
   validation_warnings: string[];
   created_at: string;
@@ -351,6 +352,27 @@ export interface CorrectionResponse {
   total_corrections: number;
   feedback_signals_generated: number;
   review_status: string;
+}
+
+// ── Phase 7: Coverage Report Types ───────────────────────────────────────
+
+export type CoverageLevel = "comprehensive" | "good" | "partial" | "minimal" | "unknown";
+
+export interface CoverageReportData {
+  total_chunks: number;
+  selected_chunks: number;
+  chunk_coverage_ratio: number;
+  total_pages: number;
+  pages_covered: number[];
+  pages_missing: number[];
+  page_coverage_ratio: number;
+  total_sections: number;
+  sections_covered: string[];
+  sections_missing: string[];
+  section_coverage_ratio: number;
+  is_comprehensive: boolean;
+  coverage_level: CoverageLevel;
+  disclosure_text: string;
 }
 
 // ── Phase 5: Retrieval Comparison Types ──────────────────────────────────

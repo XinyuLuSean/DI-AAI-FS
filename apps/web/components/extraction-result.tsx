@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type {
   ChronologyEvent,
+  CoverageReportData,
   EvidenceGapAnalysis,
   ExtractionResponse,
   EvidenceReference,
@@ -93,6 +94,11 @@ export function ExtractionResult({ result }: Props) {
       {/* Evidence gap analysis (Phase 3C) */}
       {result.evidence_gap && (
         <EvidenceGapPanel gap={result.evidence_gap} />
+      )}
+
+      {/* Coverage report (Phase 7) */}
+      {result.coverage_report && result.coverage_report.coverage_level && (
+        <CoveragePanel report={result.coverage_report} />
       )}
 
       {/* Summary */}
@@ -575,6 +581,101 @@ function EvidencePanel({ evidence }: { evidence: EvidenceReference[] }) {
               </p>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ── Coverage Panel (Phase 7D) ───────────────────────────────────────────
+
+const COVERAGE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  comprehensive: { bg: "bg-green-50 border-green-200", text: "text-green-700", label: "Comprehensive" },
+  good: { bg: "bg-blue-50 border-blue-200", text: "text-blue-700", label: "Good" },
+  partial: { bg: "bg-amber-50 border-amber-200", text: "text-amber-700", label: "Partial" },
+  minimal: { bg: "bg-red-50 border-red-200", text: "text-red-700", label: "Minimal" },
+  unknown: { bg: "bg-gray-50 border-gray-200", text: "text-gray-700", label: "Unknown" },
+};
+
+function CoveragePanel({ report }: { report: CoverageReportData }) {
+  const [expanded, setExpanded] = useState(false);
+  const style = COVERAGE_STYLES[report.coverage_level] ?? COVERAGE_STYLES.unknown;
+
+  const showWarning = report.coverage_level === "minimal" || report.coverage_level === "partial";
+
+  const pagesCovered = report.pages_covered ?? [];
+  const pagesMissing = report.pages_missing ?? [];
+  const sectionsCovered = report.sections_covered ?? [];
+  const sectionsMissing = report.sections_missing ?? [];
+
+  return (
+    <div className={`rounded-xl border p-4 ${style.bg}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <h4 className="font-semibold text-sm">Document Coverage</h4>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${style.text} ${style.bg}`}>
+            {style.label}
+          </span>
+        </div>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-gray-500 hover:underline"
+        >
+          {expanded ? "collapse" : "details"}
+        </button>
+      </div>
+
+      {showWarning && (
+        <p className={`text-xs mb-2 ${style.text}`}>
+          {report.coverage_level === "minimal"
+            ? "This analysis is based on a very small subset of the document. Results may be incomplete."
+            : "Some sections or pages are not covered. Findings in uncovered areas may be missing."}
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+        <span>
+          Chunks: <span className="font-medium">{report.selected_chunks ?? 0}/{report.total_chunks ?? 0}</span>
+          <span className="ml-1 text-gray-400">({((report.chunk_coverage_ratio ?? 0) * 100).toFixed(0)}%)</span>
+        </span>
+        <span>
+          Pages: <span className="font-medium">{pagesCovered.length}/{report.total_pages ?? 0}</span>
+          <span className="ml-1 text-gray-400">({((report.page_coverage_ratio ?? 0) * 100).toFixed(0)}%)</span>
+        </span>
+        {(report.total_sections ?? 0) > 0 && (
+          <span>
+            Sections: <span className="font-medium">{sectionsCovered.length}/{report.total_sections}</span>
+            <span className="ml-1 text-gray-400">({((report.section_coverage_ratio ?? 0) * 100).toFixed(0)}%)</span>
+          </span>
+        )}
+      </div>
+
+      {expanded && (
+        <div className="mt-3 space-y-2 text-xs">
+          {sectionsCovered.length > 0 && (
+            <div>
+              <span className="font-medium text-gray-500">Sections covered: </span>
+              <span className="text-gray-700">{sectionsCovered.join(", ")}</span>
+            </div>
+          )}
+          {sectionsMissing.length > 0 && (
+            <div>
+              <span className="font-medium text-amber-600">Sections missing: </span>
+              <span className="text-amber-700">{sectionsMissing.join(", ")}</span>
+            </div>
+          )}
+          {pagesMissing.length > 0 && pagesMissing.length <= 20 && (
+            <div>
+              <span className="font-medium text-amber-600">Pages missing: </span>
+              <span className="text-amber-700">{pagesMissing.join(", ")}</span>
+            </div>
+          )}
+          {pagesMissing.length > 20 && (
+            <div>
+              <span className="font-medium text-amber-600">{pagesMissing.length} pages not covered</span>
+            </div>
+          )}
         </div>
       )}
     </div>

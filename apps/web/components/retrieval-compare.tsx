@@ -14,6 +14,7 @@ const STRATEGY_LABELS: Record<string, string> = {
   sampled: "Sampled",
   routing_aware: "Routing-Aware",
   query_ranked: "Query-Ranked",
+  diversified: "Diversified",
   vector: "Vector (embedding)",
   hybrid: "Hybrid (RRF)",
 };
@@ -24,6 +25,7 @@ const STRATEGY_COLORS: Record<string, string> = {
   sampled: "bg-amber-100 text-amber-700",
   routing_aware: "bg-purple-100 text-purple-700",
   query_ranked: "bg-emerald-100 text-emerald-700",
+  diversified: "bg-teal-100 text-teal-700",
   vector: "bg-cyan-100 text-cyan-700",
   hybrid: "bg-rose-100 text-rose-700",
 };
@@ -34,6 +36,7 @@ const PIPELINE_ICONS: Record<string, string> = {
   sampled: "🎲",
   routing_aware: "🔀",
   query_ranked: "🔍",
+  diversified: "🌐",
   vector: "🧠",
   hybrid: "⚡",
 };

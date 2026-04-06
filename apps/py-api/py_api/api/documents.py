@@ -593,6 +593,7 @@ async def summarise(
       sampled       — evenly spaced across all chunks
       routing_aware — adapts based on document type
       query_ranked  — rank by relevance to query (requires query parameter)
+      diversified   — section-aware selection balancing relevance with diversity
     """
     doc = _documents.get(document_id)
     if doc is None:
@@ -686,6 +687,41 @@ async def chronology(
         selection_strategy=sm.selection_strategy.value if sm else None,
         chunks_sent=sm.chunks_sent_to_llm if sm else None,
         review_status=reviewable.status.value,
+    )
+    return result
+
+
+@router.post("/{document_id}/hierarchical-summarise")
+async def hierarchical_summarise_endpoint(
+    document_id: str,
+) -> ExtractionResult:
+    """Run hierarchical MapReduce summarisation on a document.
+
+    Processes ALL chunks through a 3-stage pipeline:
+      1. Chunk-level fact extraction (deterministic, no LLM)
+      2. Section-level aggregation (deterministic)
+      3. Document-level synthesis (single LLM call)
+
+    This approach handles long documents without chunk budget limits
+    because the LLM only sees compact section summaries, not raw text.
+    """
+    doc = _documents.get(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.chunks:
+        raise HTTPException(status_code=422, detail="Document has no chunks")
+
+    from ai_core import hierarchical_summarise
+
+    result = hierarchical_summarise(doc)
+    _extractions[result.id] = result
+    _ensure_reviewable(result.id)
+
+    logger.info(
+        "document.hierarchical_summarised",
+        doc_id=document_id,
+        model=result.model_used,
+        time_ms=result.processing_time_ms,
     )
     return result
 
