@@ -26,6 +26,8 @@ const TRIGGER_LABELS: Record<ReviewTriggerReason, string> = {
   partial_coverage: "Partial coverage",
   degraded_parse_quality: "Degraded parse",
   low_routing_confidence: "Low routing",
+  safe_failure: "Safe failure",
+  deterministic_contradiction: "Contradiction",
   manual_request: "Manual",
 };
 

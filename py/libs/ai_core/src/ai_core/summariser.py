@@ -39,6 +39,11 @@ from ai_core.grounding import (
     build_evidence_gap_analysis,
     enrich_summarisation_meta,
 )
+from ai_core.safety import (
+    apply_safe_summary_degradation,
+    build_uncertainty_assessment,
+    detect_field_contradictions,
+)
 from ai_core.prompts import (
     GROUNDED_SUMMARISE_V1,
     SUMMARISE_V1,
@@ -218,6 +223,8 @@ def summarise_document(
         )
         for sf in validated.structured_fields
     ]
+    contradiction_warnings = detect_field_contradictions(fields, grounding_fields)
+    combined_validation_warnings = validation_warnings + contradiction_warnings
 
     # ── Assemble result ──────────────────────────────────────────────
     summary = SummaryResult(
@@ -231,6 +238,34 @@ def summarise_document(
     summarisation_meta = enrich_summarisation_meta(
         summarisation_meta, used_ids, chunk_map,
     )
+
+    parse_quality = doc.parse_meta.quality.value if doc.parse_meta else ""
+    likely_low_quality_source = bool(
+        doc.parse_meta and (
+            doc.parse_meta.quality.value != "good"
+            or doc.parse_meta.likely_needs_ocr
+            or doc.parse_meta.likely_scanned
+        )
+    )
+    unsupported_claim_count = (
+        grounding_audit_result.key_points_ungrounded
+        + grounding_audit_result.chunks_cited_invalid
+    )
+    uncertainty_assessment = build_uncertainty_assessment(
+        parse_quality=parse_quality,
+        likely_low_quality_source=likely_low_quality_source,
+        coverage_level=coverage_report.coverage_level,
+        grounding_score=grounding_audit_result.grounding_score,
+        unsupported_claim_count=unsupported_claim_count,
+        contradiction_warnings=contradiction_warnings,
+        validation_status=vr.status.value,
+        grounded_points=grounded_points,
+    )
+    summary = apply_safe_summary_degradation(summary, uncertainty_assessment)
+    if uncertainty_assessment.review_recommended:
+        experiment_meta.notes.append("review_recommended=yes")
+    if uncertainty_assessment.abstained:
+        experiment_meta.notes.append("safe_failure=abstained")
 
     elapsed_ms = int((time.perf_counter_ns() - start) / 1_000_000)
 
@@ -247,7 +282,8 @@ def summarise_document(
         evidence_gap=evidence_gap.model_dump(),
         coverage_report=coverage_report.model_dump(),
         experiment_meta=experiment_meta,
+        uncertainty_assessment=uncertainty_assessment,
         validation_status=vr.status.value,
-        validation_warnings=validation_warnings,
+        validation_warnings=combined_validation_warnings,
         processing_time_ms=elapsed_ms,
     )

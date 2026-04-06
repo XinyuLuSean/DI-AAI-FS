@@ -12,6 +12,7 @@ import type {
   GroundingAudit,
   SemanticMatchResult,
   SummarisationMeta,
+  UncertaintyAssessment,
 } from "@/lib/types";
 
 interface Props {
@@ -94,6 +95,10 @@ export function ExtractionResult({ result }: Props) {
       {/* Grounding audit banner (Phase 8C) */}
       {result.grounding_audit && (
         <GroundingAuditPanel audit={result.grounding_audit} />
+      )}
+
+      {result.uncertainty_assessment && (
+        <UncertaintyPanel assessment={result.uncertainty_assessment} />
       )}
 
       {/* Summarisation meta (Phase 8D) */}
@@ -329,6 +334,56 @@ function SemanticMatchPanel({ semanticMatch }: { semanticMatch: SemanticMatchRes
         <div className="mt-4 space-y-1 text-xs text-gray-500">
           {semanticMatch.notes.map((note, idx) => (
             <p key={idx}>{note}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UncertaintyPanel({ assessment }: { assessment: UncertaintyAssessment }) {
+  const severe = assessment.abstained || assessment.review_recommended;
+
+  return (
+    <div
+      className={`rounded-lg border p-4 text-xs ${
+        severe ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"
+      }`}
+    >
+      <div className="mb-2 flex items-center gap-3">
+        <h4 className={`text-sm font-medium ${severe ? "text-red-700" : "text-amber-700"}`}>
+          Uncertainty & Safe Failure
+        </h4>
+        {assessment.abstained && (
+          <span className="rounded bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-red-700">
+            Abstained
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-1 text-gray-600">
+        <span>Confidence: <span className="font-medium">{(assessment.overall_confidence * 100).toFixed(0)}%</span></span>
+        <span>Evidence: <span className="font-medium">{assessment.evidence_sufficiency}</span></span>
+        {assessment.partial_coverage && <span className="font-medium text-amber-700">Partial coverage</span>}
+        {assessment.likely_low_quality_source && <span className="font-medium text-red-700">Low-quality source</span>}
+      </div>
+      {assessment.safe_failure_reason && (
+        <p className={`mt-2 ${severe ? "text-red-600" : "text-amber-600"}`}>
+          {assessment.safe_failure_reason}
+        </p>
+      )}
+      {assessment.contradiction_warnings.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {assessment.contradiction_warnings.map((warning, idx) => (
+            <p key={idx} className="text-red-600">{warning}</p>
+          ))}
+        </div>
+      )}
+      {assessment.risk_flags.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {assessment.risk_flags.map((flag) => (
+            <span key={flag} className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] text-gray-600">
+              {flag.replace(/_/g, " ")}
+            </span>
           ))}
         </div>
       )}

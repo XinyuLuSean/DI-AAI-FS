@@ -35,6 +35,7 @@ from data_model.extraction import (
     SummarisationMeta,
     SummaryResult,
     TopicCluster,
+    UncertaintyAssessment,
 )
 from data_model.pipeline import (
     FailureKind,
@@ -109,6 +110,7 @@ __all__ = [
     "SummaryCorrection",
     "SummaryResult",
     "TopicCluster",
+    "UncertaintyAssessment",
     "classify_extraction_outcome",
     "classify_parse_outcome",
     "classify_summary_outcome",

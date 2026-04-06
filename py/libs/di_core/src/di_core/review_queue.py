@@ -73,6 +73,15 @@ def classify_review_triggers(
     if sm and sm.is_partial and sm.coverage_ratio < PARTIAL_COVERAGE_THRESHOLD:
         triggers.append(ReviewTriggerReason.PARTIAL_COVERAGE)
 
+    uncertainty = result.uncertainty_assessment
+    if uncertainty:
+        if uncertainty.abstained:
+            triggers.append(ReviewTriggerReason.SAFE_FAILURE)
+        if uncertainty.contradiction_warnings:
+            triggers.append(ReviewTriggerReason.DETERMINISTIC_CONTRADICTION)
+        if uncertainty.partial_coverage and ReviewTriggerReason.PARTIAL_COVERAGE not in triggers:
+            triggers.append(ReviewTriggerReason.PARTIAL_COVERAGE)
+
     if parse_quality == ParseQuality.DEGRADED:
         triggers.append(ReviewTriggerReason.DEGRADED_PARSE_QUALITY)
 
@@ -103,6 +112,8 @@ def compute_review_priority(
         ReviewTriggerReason.PARTIAL_COVERAGE: 0.50,
         ReviewTriggerReason.DEGRADED_PARSE_QUALITY: 0.45,
         ReviewTriggerReason.LOW_ROUTING_CONFIDENCE: 0.35,
+        ReviewTriggerReason.SAFE_FAILURE: 0.92,
+        ReviewTriggerReason.DETERMINISTIC_CONTRADICTION: 0.88,
         ReviewTriggerReason.MANUAL_REQUEST: 0.90,
     }
 

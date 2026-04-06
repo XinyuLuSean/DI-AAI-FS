@@ -269,6 +269,21 @@ export interface SummarisationMeta {
   warnings: string[];
 }
 
+export interface UncertaintyAssessment {
+  overall_confidence: number;
+  evidence_sufficiency: string;
+  partial_coverage: boolean;
+  review_recommended: boolean;
+  likely_low_quality_source: boolean;
+  abstained: boolean;
+  scope_limited: boolean;
+  unsupported_claim_count: number;
+  inferred_claim_count: number;
+  contradiction_warnings: string[];
+  risk_flags: string[];
+  safe_failure_reason: string;
+}
+
 export type EvidenceStrength = "strong" | "weak" | "none";
 
 export interface ClaimEvidence {
@@ -315,6 +330,7 @@ export interface ExtractionResponse {
   summarisation_meta: SummarisationMeta | null;
   evidence_gap: EvidenceGapAnalysis | null;
   coverage_report: CoverageReportData | null;
+  uncertainty_assessment: UncertaintyAssessment | null;
   validation_status: ValidationStatus;
   validation_warnings: string[];
   created_at: string;
@@ -369,6 +385,8 @@ export type ReviewTriggerReason =
   | "partial_coverage"
   | "degraded_parse_quality"
   | "low_routing_confidence"
+  | "safe_failure"
+  | "deterministic_contradiction"
   | "manual_request";
 
 export interface ReviewDecision {

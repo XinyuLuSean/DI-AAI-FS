@@ -58,6 +58,8 @@ class ReviewTriggerReason(StrEnum):
     PARTIAL_COVERAGE = "partial_coverage"
     DEGRADED_PARSE_QUALITY = "degraded_parse_quality"
     LOW_ROUTING_CONFIDENCE = "low_routing_confidence"
+    SAFE_FAILURE = "safe_failure"
+    DETERMINISTIC_CONTRADICTION = "deterministic_contradiction"
     MANUAL_REQUEST = "manual_request"
 
 

@@ -243,6 +243,23 @@ class ExperimentMeta(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class UncertaintyAssessment(BaseModel):
+    """Explicit uncertainty and safe-failure state for AI outputs."""
+
+    overall_confidence: float = 0.0
+    evidence_sufficiency: str = "unknown"  # "sufficient", "partial", "weak", "none"
+    partial_coverage: bool = False
+    review_recommended: bool = False
+    likely_low_quality_source: bool = False
+    abstained: bool = False
+    scope_limited: bool = False
+    unsupported_claim_count: int = 0
+    inferred_claim_count: int = 0
+    contradiction_warnings: list[str] = Field(default_factory=list)
+    risk_flags: list[str] = Field(default_factory=list)
+    safe_failure_reason: str = ""
+
+
 class SummarisationMeta(BaseModel):
     """Tracks what the LLM actually saw vs what was available.
 
@@ -313,6 +330,7 @@ class ExtractionResult(BaseModel):
     evidence_gap: dict | None = None
     coverage_report: dict | None = None
     experiment_meta: ExperimentMeta | None = None
+    uncertainty_assessment: UncertaintyAssessment | None = None
 
     # ── Warning / review status ──────────────────────────────────────
     validation_status: str = "valid"
