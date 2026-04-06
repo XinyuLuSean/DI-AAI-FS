@@ -1,5 +1,12 @@
 from ai_core.adapter import LLMAdapter
-from ai_core.grounding import audit_grounding, enrich_summarisation_meta
+from ai_core.grounding import (
+    ClaimEvidence,
+    EvidenceGapAnalysis,
+    apply_grounding_safeguards,
+    audit_grounding,
+    build_evidence_gap_analysis,
+    enrich_summarisation_meta,
+)
 from ai_core.prompts import (
     GROUNDED_SUMMARISE_V1,
     SUMMARISE_V1,
@@ -19,6 +26,8 @@ from ai_core.validation import (
 )
 
 __all__ = [
+    "ClaimEvidence",
+    "EvidenceGapAnalysis",
     "GROUNDED_SUMMARISE_V1",
     "LLMAdapter",
     "LLMSummarisationOutput",
@@ -28,7 +37,9 @@ __all__ = [
     "ValidationIssue",
     "ValidationResult",
     "ValidationStatus",
+    "apply_grounding_safeguards",
     "audit_grounding",
+    "build_evidence_gap_analysis",
     "enrich_summarisation_meta",
     "get_prompt",
     "list_prompts",

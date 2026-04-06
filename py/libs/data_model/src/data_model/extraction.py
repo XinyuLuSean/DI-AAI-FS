@@ -89,16 +89,21 @@ class StructuredField(BaseModel):
 
 
 class GroundedKeyPoint(BaseModel):
-    """A key point with per-claim evidence binding (Phase 8A).
+    """A key point with per-claim evidence binding.
 
-    Each key_point now traces back to the specific chunks that support it,
-    enabling reviewers to verify individual claims instead of trusting the
-    summary as a monolith.
+    Each key_point traces back to the specific chunks that support it,
+    enabling reviewers to verify individual claims.
+
+    Phase 3 additions:
+      page_numbers  — pages where supporting evidence was found
+      evidence_snippets — short text excerpts from cited chunks
     """
 
     text: str
     chunk_ids: list[str] = Field(default_factory=list)
     grounded: bool = True
+    page_numbers: list[int] = Field(default_factory=list)
+    evidence_snippets: list[str] = Field(default_factory=list)
 
 
 class SummaryResult(BaseModel):
@@ -195,6 +200,7 @@ class ExtractionResult(BaseModel):
     # ── Evidence metadata ────────────────────────────────────────────
     grounding_audit: GroundingAudit | None = None
     summarisation_meta: SummarisationMeta | None = None
+    evidence_gap: dict | None = None
 
     # ── Warning / review status ──────────────────────────────────────
     validation_status: str = "valid"

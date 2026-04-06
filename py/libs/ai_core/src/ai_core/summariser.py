@@ -31,7 +31,12 @@ from data_model import (
 )
 
 from ai_core.adapter import LLMAdapter
-from ai_core.grounding import audit_grounding, enrich_summarisation_meta
+from ai_core.grounding import (
+    apply_grounding_safeguards,
+    audit_grounding,
+    build_evidence_gap_analysis,
+    enrich_summarisation_meta,
+)
 from ai_core.prompts import (
     GROUNDED_SUMMARISE_V1,
     SUMMARISE_V1,
@@ -153,9 +158,21 @@ def summarise_document(
         raw_key_points, used_ids, provided_ids, chunk_map,
     )
 
+    # ── Apply grounding safeguards (Phase 3B) ──────────────────────────
+    grounded_points, grounding_audit_result = apply_grounding_safeguards(
+        grounded_points, grounding_audit_result,
+    )
+
     plain_key_points = [gkp.text for gkp in grounded_points]
     grounded_count = sum(1 for gkp in grounded_points if gkp.grounded)
     grounding_coverage = grounded_count / len(grounded_points) if grounded_points else 0.0
+
+    # ── Evidence gap analysis (Phase 3C) ─────────────────────────────
+    total_pages = doc.parse_meta.page_count if doc.parse_meta else len(doc.pages)
+    evidence_gap = build_evidence_gap_analysis(
+        grounded_points, provided_ids, used_ids, chunk_map,
+        total_pages=total_pages,
+    )
 
     # ── Structured fields from LLM ───────────────────────────────────
     fields = [
@@ -194,6 +211,7 @@ def summarise_document(
         summary=summary,
         grounding_audit=grounding_audit_result,
         summarisation_meta=summarisation_meta,
+        evidence_gap=evidence_gap.model_dump(),
         validation_status=vr.status.value,
         validation_warnings=validation_warnings,
         processing_time_ms=elapsed_ms,

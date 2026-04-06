@@ -160,6 +160,8 @@ export interface GroundedKeyPoint {
   text: string;
   chunk_ids: string[];
   grounded: boolean;
+  page_numbers: number[];
+  evidence_snippets: string[];
 }
 
 export interface SummaryResult {
@@ -199,6 +201,34 @@ export interface SummarisationMeta {
   warnings: string[];
 }
 
+export type EvidenceStrength = "strong" | "weak" | "none";
+
+export interface ClaimEvidence {
+  claim_text: string;
+  claim_index: number;
+  grounded: boolean;
+  chunk_ids: string[];
+  page_numbers: number[];
+  evidence_strength: EvidenceStrength;
+}
+
+export interface EvidenceGapAnalysis {
+  total_claims: number;
+  grounded_claims: number;
+  ungrounded_claims: number;
+  strong_evidence_claims: number;
+  weak_evidence_claims: number;
+  no_evidence_claims: number;
+  chunks_provided: number;
+  chunks_cited: number;
+  chunks_unused: number;
+  pages_with_evidence: number[];
+  pages_without_evidence: number[];
+  claims: ClaimEvidence[];
+  overall_strength: string;
+  summary: string;
+}
+
 export type ValidationStatus = "valid" | "partial_recovery" | "missing_required" | "wrong_structure";
 
 export interface ExtractionResponse {
@@ -212,6 +242,7 @@ export interface ExtractionResponse {
   summary: SummaryResult | null;
   grounding_audit: GroundingAudit | null;
   summarisation_meta: SummarisationMeta | null;
+  evidence_gap: EvidenceGapAnalysis | null;
   validation_status: ValidationStatus;
   validation_warnings: string[];
   created_at: string;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type {
+  EvidenceGapAnalysis,
   ExtractionResponse,
   EvidenceReference,
   GroundedKeyPoint,
@@ -80,6 +81,11 @@ export function ExtractionResult({ result }: Props) {
       {/* Summarisation meta (Phase 8D) */}
       {result.summarisation_meta && (
         <SummarisationMetaPanel meta={result.summarisation_meta} />
+      )}
+
+      {/* Evidence gap analysis (Phase 3C) */}
+      {result.evidence_gap && (
+        <EvidenceGapPanel gap={result.evidence_gap} />
       )}
 
       {/* Summary */}
@@ -180,6 +186,8 @@ export function ExtractionResult({ result }: Props) {
 }
 
 function GroundedKeyPointsList({ points }: { points: GroundedKeyPoint[] }) {
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
   return (
     <div className="mt-4">
       <h4 className="mb-2 text-sm font-medium text-gray-500">
@@ -187,25 +195,52 @@ function GroundedKeyPointsList({ points }: { points: GroundedKeyPoint[] }) {
       </h4>
       <ul className="space-y-2 text-sm">
         {points.map((gkp, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <span
-              className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${
-                gkp.grounded ? "bg-emerald-500" : "bg-red-400"
-              }`}
-            />
-            <div>
-              <span className="text-gray-700">{gkp.text}</span>
-              {gkp.chunk_ids.length > 0 && (
-                <span className="ml-2 text-[10px] font-mono text-gray-400">
-                  [{gkp.chunk_ids.join(", ")}]
-                </span>
-              )}
-              {!gkp.grounded && (
-                <span className="ml-2 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600">
-                  ungrounded
-                </span>
-              )}
+          <li key={i}>
+            <div className="flex items-start gap-2">
+              <span
+                className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${
+                  gkp.grounded ? "bg-emerald-500" : "bg-red-400"
+                }`}
+              />
+              <div className="flex-1">
+                <span className="text-gray-700">{gkp.text}</span>
+                {gkp.chunk_ids.length > 0 && (
+                  <span className="ml-2 text-[10px] font-mono text-gray-400">
+                    [{gkp.chunk_ids.join(", ")}]
+                  </span>
+                )}
+                {gkp.page_numbers && gkp.page_numbers.length > 0 && (
+                  <span className="ml-2 text-[10px] text-blue-400">
+                    pp. {gkp.page_numbers.join(", ")}
+                  </span>
+                )}
+                {!gkp.grounded && (
+                  <span className="ml-2 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600">
+                    ungrounded
+                  </span>
+                )}
+                {gkp.evidence_snippets && gkp.evidence_snippets.length > 0 && (
+                  <button
+                    onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
+                    className="ml-2 text-[10px] text-blue-500 hover:underline"
+                  >
+                    {expandedIdx === i ? "hide evidence" : "show evidence"}
+                  </button>
+                )}
+              </div>
             </div>
+            {expandedIdx === i && gkp.evidence_snippets && gkp.evidence_snippets.length > 0 && (
+              <div className="ml-4 mt-1 space-y-1">
+                {gkp.evidence_snippets.map((snippet, j) => (
+                  <div
+                    key={j}
+                    className="rounded border border-blue-100 bg-blue-50/50 px-2.5 py-1.5 text-xs text-gray-600"
+                  >
+                    {snippet}
+                  </div>
+                ))}
+              </div>
+            )}
           </li>
         ))}
       </ul>
@@ -329,6 +364,68 @@ function SummarisationMetaPanel({ meta }: { meta: SummarisationMeta }) {
             </p>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+const STRENGTH_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  strong: { bg: "bg-emerald-100", text: "text-emerald-700", label: "Strong" },
+  moderate: { bg: "bg-blue-100", text: "text-blue-700", label: "Moderate" },
+  weak: { bg: "bg-amber-100", text: "text-amber-700", label: "Weak" },
+  none: { bg: "bg-red-100", text: "text-red-700", label: "No Evidence" },
+};
+
+function EvidenceGapPanel({ gap }: { gap: EvidenceGapAnalysis }) {
+  const style = STRENGTH_STYLES[gap.overall_strength] ?? STRENGTH_STYLES.none;
+
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-xs">
+      <div className="mb-2 flex items-center gap-3">
+        <h4 className="text-sm font-medium text-gray-600">Evidence Analysis</h4>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${style.bg} ${style.text}`}>
+          {style.label}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-1 text-gray-500">
+        <span>
+          Claims:{" "}
+          <span className="font-medium text-gray-700">
+            {gap.grounded_claims}/{gap.total_claims} grounded
+          </span>
+        </span>
+        {gap.strong_evidence_claims > 0 && (
+          <span>
+            Strong:{" "}
+            <span className="font-medium text-emerald-600">{gap.strong_evidence_claims}</span>
+          </span>
+        )}
+        {gap.weak_evidence_claims > 0 && (
+          <span>
+            Weak:{" "}
+            <span className="font-medium text-amber-600">{gap.weak_evidence_claims}</span>
+          </span>
+        )}
+        {gap.no_evidence_claims > 0 && (
+          <span>
+            Unsupported:{" "}
+            <span className="font-medium text-red-600">{gap.no_evidence_claims}</span>
+          </span>
+        )}
+        <span>
+          Chunks:{" "}
+          <span className="font-medium text-gray-700">
+            {gap.chunks_cited}/{gap.chunks_provided} cited
+          </span>
+        </span>
+        {gap.chunks_unused > 0 && (
+          <span className="text-gray-400">
+            {gap.chunks_unused} unused
+          </span>
+        )}
+      </div>
+      {gap.summary && (
+        <p className="mt-2 text-gray-500">{gap.summary}</p>
       )}
     </div>
   );
