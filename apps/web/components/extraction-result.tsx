@@ -19,34 +19,37 @@ interface Props {
   result: ExtractionResponse;
 }
 
+function getResultBadge(result: ExtractionResponse): { label: string; styles: string } {
+  if (result.output_type === "ai_summary") {
+    if (result.prompt_name === "hierarchical_v1") {
+      return { label: "Hierarchical Summary", styles: "bg-teal-100 text-teal-700" };
+    }
+    if (result.prompt_name === "grounded_summarise") {
+      return { label: "Grounded Summary", styles: "bg-blue-100 text-blue-700" };
+    }
+    return { label: "AI Summary", styles: "bg-purple-100 text-purple-700" };
+  }
+
+  if (result.output_type === "deterministic") {
+    return { label: "Deterministic", styles: "bg-gray-100 text-gray-700" };
+  }
+  if (result.output_type === "ai_chronology") {
+    return { label: "AI Chronology", styles: "bg-indigo-100 text-indigo-700" };
+  }
+  if (result.output_type === "ai_classification") {
+    return { label: "Readiness Classification", styles: "bg-emerald-100 text-emerald-700" };
+  }
+  return { label: "Semantic Match", styles: "bg-amber-100 text-amber-700" };
+}
+
 export function ExtractionResult({ result }: Props) {
+  const badge = getResultBadge(result);
+
   return (
     <div className="space-y-6">
       {/* Run metadata + output type badge */}
       <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-        <span
-          className={`rounded-full px-2.5 py-0.5 font-medium ${
-            result.output_type === "deterministic"
-              ? "bg-gray-100 text-gray-700"
-              : result.output_type === "ai_chronology"
-                ? "bg-indigo-100 text-indigo-700"
-                : result.output_type === "ai_classification"
-                  ? "bg-emerald-100 text-emerald-700"
-                  : result.output_type === "semantic_match"
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-purple-100 text-purple-700"
-          }`}
-        >
-          {result.output_type === "deterministic"
-            ? "Deterministic"
-            : result.output_type === "ai_chronology"
-              ? "AI Chronology"
-              : result.output_type === "ai_classification"
-                ? "Readiness Classification"
-                : result.output_type === "semantic_match"
-                  ? "Semantic Match"
-                  : "AI Summary"}
-        </span>
+        <span className={`rounded-full px-2.5 py-0.5 font-medium ${badge.styles}`}>{badge.label}</span>
         <span>Model: {result.model_used}</span>
         {result.prompt_name && (
           <span>Prompt: {result.prompt_name}@{result.prompt_version}</span>

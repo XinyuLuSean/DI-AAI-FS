@@ -357,6 +357,8 @@ export interface ExtractionListItem {
   document_id: string;
   output_type: string;
   model_used: string;
+  prompt_name: string;
+  prompt_version: string;
   field_count: number;
   has_summary: boolean;
   processing_time_ms: number;

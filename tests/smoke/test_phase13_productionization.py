@@ -138,6 +138,26 @@ class TestPhase13DegradedMode:
         reset_ai_ops_metrics()
         self.client = TestClient(app)
 
+    def test_summarise_rejects_unknown_extraction_id(self) -> None:
+        doc = _upload(self.client, "sample.txt")
+        resp = self.client.post(
+            f"/documents/{doc['id']}/summarise",
+            params={"extraction_id": "missing-extraction"},
+        )
+
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Extraction not found"
+
+    def test_summarise_rejects_unknown_prompt(self) -> None:
+        doc = _upload(self.client, "sample.txt")
+        resp = self.client.post(
+            f"/documents/{doc['id']}/summarise",
+            params={"prompt_name": "does_not_exist"},
+        )
+
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Prompt 'does_not_exist@1.0' not found"
+
     def test_summarise_returns_503_on_provider_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def fake_completion(**kwargs):  # noqa: ANN003
             raise RuntimeError("Service unavailable from provider")
@@ -164,3 +184,29 @@ class TestPhase13DegradedMode:
         ai_ops = health.json()["ai_ops"]
         assert ai_ops["retrieval_requests_total"] >= 1
         assert ai_ops["avg_retrieval_latency_ms"] >= 0
+
+    def test_list_extractions_includes_prompt_metadata_for_summaries(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "ai_core.adapter.litellm.completion",
+            lambda **kwargs: _fake_response(
+                '{"summary_text":"A grounded summary.","key_points":[{"point":"Claim","chunk_ids":["c1"]}],"structured_fields":[],"chunk_ids_used":["c1"]}',
+            ),
+        )
+
+        doc = _upload(self.client, "sample.txt")
+        extraction = self.client.post(f"/documents/{doc['id']}/extract").json()
+        summary = self.client.post(
+            f"/documents/{doc['id']}/summarise",
+            params={"extraction_id": extraction["id"]},
+        ).json()
+
+        resp = self.client.get(f"/documents/{doc['id']}/extractions")
+        assert resp.status_code == 200
+
+        items = resp.json()
+        summary_item = next(item for item in items if item["id"] == summary["id"])
+        assert summary_item["prompt_name"] == "grounded_summarise"
+        assert summary_item["prompt_version"] == "1.0"

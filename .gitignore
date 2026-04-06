@@ -50,4 +50,5 @@ uploads/
 tmp/
 
 # uv
+.uv-cache/
 uv.lock

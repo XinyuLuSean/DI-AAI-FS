@@ -3,13 +3,17 @@
   "private": true,
   "packageManager": "pnpm@10.6.2",
   "scripts": {
+    "test:py": "UV_CACHE_DIR=.uv-cache uv run pytest tests -q",
     "dev:web": "pnpm --filter @di-aai-fs/web dev",
     "build:web": "pnpm --filter @di-aai-fs/web build",
     "lint:web": "pnpm --filter @di-aai-fs/web lint",
+    "typecheck:web": "pnpm --filter @di-aai-fs/web typecheck",
+    "check:web": "pnpm --filter @di-aai-fs/web check",
+    "check": "pnpm run test:py && pnpm run check:web",
     "check:env": "bash scripts/dev/check-env.sh"
   },
   "engines": {
-    "node": ">=18.0.0 <23.0.0",
+    "node": ">=18.0.0 <25.0.0",
     "pnpm": ">=10.0.0"
   }
 }

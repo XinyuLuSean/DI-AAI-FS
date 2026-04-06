@@ -33,6 +33,73 @@ const REVIEW_STATUS_STYLES: Record<string, { bg: string; text: string; label: st
   auto_accepted: { bg: "bg-gray-100", text: "text-gray-500", label: "Auto-Accepted" },
 };
 
+type ExtractionDisplayInput = {
+  output_type: string;
+  prompt_name?: string | null;
+};
+
+function getSummaryVariant(promptName?: string | null): "hierarchical" | "grounded" | "standard" {
+  if (promptName === "hierarchical_v1") return "hierarchical";
+  if (promptName === "grounded_summarise") return "grounded";
+  return "standard";
+}
+
+function getExtractionDisplayMeta(extraction: ExtractionDisplayInput): {
+  badge: string;
+  label: string;
+  subtitle: string;
+} {
+  if (extraction.output_type === "ai_summary") {
+    const variant = getSummaryVariant(extraction.prompt_name);
+    if (variant === "hierarchical") {
+      return {
+        badge: "bg-teal-100 text-teal-700",
+        label: "Hierarchical Summary",
+        subtitle: "map-reduce over all chunks",
+      };
+    }
+    if (variant === "grounded") {
+      return {
+        badge: "bg-blue-100 text-blue-700",
+        label: "Grounded Summary",
+        subtitle: "grounded by deterministic extraction",
+      };
+    }
+    return {
+      badge: "bg-purple-100 text-purple-700",
+      label: "AI Summary",
+      subtitle: "ungrounded summarisation",
+    };
+  }
+
+  if (extraction.output_type === "deterministic") {
+    return {
+      badge: "bg-gray-100 text-gray-700",
+      label: "Extraction",
+      subtitle: "regex and heuristics",
+    };
+  }
+  if (extraction.output_type === "ai_chronology") {
+    return {
+      badge: "bg-indigo-100 text-indigo-700",
+      label: "AI Chronology",
+      subtitle: "timeline extraction",
+    };
+  }
+  if (extraction.output_type === "ai_classification") {
+    return {
+      badge: "bg-emerald-100 text-emerald-700",
+      label: "Readiness Classifier",
+      subtitle: "explainable AI decision",
+    };
+  }
+  return {
+    badge: "bg-amber-100 text-amber-700",
+    label: "Semantic Match",
+    subtitle: "fact-to-evidence alignment",
+  };
+}
+
 export default function Home() {
   // Document list (persists across navigation via API reload)
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
@@ -76,6 +143,41 @@ export default function Home() {
     loadDocuments();
   }, [loadDocuments]);
 
+  const applyExtractionResult = useCallback((result: ExtractionResponse) => {
+    if (result.output_type === "deterministic") {
+      setActiveExtraction(result);
+      return;
+    }
+    if (result.output_type === "ai_summary") {
+      setActiveSummary(result);
+      return;
+    }
+    if (result.output_type === "ai_chronology") {
+      setActiveChronology(result);
+      return;
+    }
+    if (result.output_type === "ai_classification") {
+      setActiveClassification(result);
+      return;
+    }
+    if (result.output_type === "semantic_match") {
+      setActiveSemanticMatch(result);
+    }
+  }, []);
+
+  const loadExtractionDetail = useCallback(
+    async (docId: string, extraction: ExtractionListItem) => {
+      try {
+        setError(null);
+        const full = await getExtraction(docId, extraction.id);
+        applyExtractionResult(full);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to load extraction");
+      }
+    },
+    [applyExtractionResult],
+  );
+
   const selectDocument = async (docId: string) => {
     setSelectedDocId(docId);
     setActiveExtraction(null);
@@ -93,31 +195,18 @@ export default function Home() {
       setExtractions(exts);
 
       if (exts.length > 0) {
-        const det = exts.find((e: ExtractionListItem) => e.output_type === "deterministic");
-        const sum = exts.find((e: ExtractionListItem) => e.output_type === "ai_summary");
-        const chr = exts.find((e: ExtractionListItem) => e.output_type === "ai_chronology");
-        const cls = exts.find((e: ExtractionListItem) => e.output_type === "ai_classification");
-        const mat = exts.find((e: ExtractionListItem) => e.output_type === "semantic_match");
-        if (det) {
-          const full = await getExtraction(docId, det.id);
-          setActiveExtraction(full);
-        }
-        if (sum) {
-          const full = await getExtraction(docId, sum.id);
-          setActiveSummary(full);
-        }
-        if (chr) {
-          const full = await getExtraction(docId, chr.id);
-          setActiveChronology(full);
-        }
-        if (cls) {
-          const full = await getExtraction(docId, cls.id);
-          setActiveClassification(full);
-        }
-        if (mat) {
-          const full = await getExtraction(docId, mat.id);
-          setActiveSemanticMatch(full);
-        }
+        const targets = [
+          exts.find((e: ExtractionListItem) => e.output_type === "deterministic"),
+          exts.find((e: ExtractionListItem) => e.output_type === "ai_summary"),
+          exts.find((e: ExtractionListItem) => e.output_type === "ai_chronology"),
+          exts.find((e: ExtractionListItem) => e.output_type === "ai_classification"),
+          exts.find((e: ExtractionListItem) => e.output_type === "semantic_match"),
+        ].filter((value): value is ExtractionListItem => value !== undefined);
+
+        const fullResults = await Promise.all(
+          targets.map((target) => getExtraction(docId, target.id)),
+        );
+        fullResults.forEach(applyExtractionResult);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load document");
@@ -139,6 +228,27 @@ export default function Home() {
     await loadDocuments();
     await selectDocument(doc.id);
   };
+
+  const activeResultIds = new Set(
+    [
+      activeExtraction?.id,
+      activeSummary?.id,
+      activeChronology?.id,
+      activeClassification?.id,
+      activeSemanticMatch?.id,
+    ].filter((id): id is string => Boolean(id)),
+  );
+  const hasGroundedSummary = extractions.some(
+    (extraction) =>
+      extraction.output_type === "ai_summary"
+      && getSummaryVariant(extraction.prompt_name) !== "hierarchical",
+  );
+  const hasHierarchicalSummary = extractions.some(
+    (extraction) =>
+      extraction.output_type === "ai_summary"
+      && getSummaryVariant(extraction.prompt_name) === "hierarchical",
+  );
+  const activeSummaryMeta = activeSummary ? getExtractionDisplayMeta(activeSummary) : null;
 
   return (
     <div className="flex gap-6 min-h-[calc(100vh-8rem)]">
@@ -242,33 +352,26 @@ export default function Home() {
                 </h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {extractions.map((ext) => {
+                    const display = getExtractionDisplayMeta(ext);
                     const rs = ext.review_status ? REVIEW_STATUS_STYLES[ext.review_status] : null;
                     return (
-                      <div
+                      <button
                         key={ext.id}
-                        className="rounded-lg border border-gray-200 bg-white p-4"
+                        type="button"
+                        onClick={() => {
+                          if (document) {
+                            void loadExtractionDetail(document.id, ext);
+                          }
+                        }}
+                        className={`rounded-lg border bg-white p-4 text-left transition ${
+                          activeResultIds.has(ext.id)
+                            ? "border-blue-300 ring-2 ring-blue-100"
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50/50"
+                        }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            ext.output_type === "deterministic"
-                              ? "bg-gray-100 text-gray-700"
-                              : ext.output_type === "ai_chronology"
-                                ? "bg-indigo-100 text-indigo-700"
-                                : ext.output_type === "ai_classification"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : ext.output_type === "semantic_match"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-purple-100 text-purple-700"
-                          }`}>
-                            {ext.output_type === "deterministic"
-                              ? "Extraction"
-                              : ext.output_type === "ai_chronology"
-                                ? "AI Chronology"
-                                : ext.output_type === "ai_classification"
-                                  ? "Readiness Classifier"
-                                  : ext.output_type === "semantic_match"
-                                    ? "Semantic Match"
-                                    : "AI Summary"}
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${display.badge}`}>
+                            {display.label}
                           </span>
                           {rs && (
                             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${rs.bg} ${rs.text}`}>
@@ -281,6 +384,10 @@ export default function Home() {
                           <span>{ext.processing_time_ms}ms</span>
                           <span className="font-mono text-gray-400">{ext.model_used}</span>
                         </div>
+                        <p className="mt-2 text-xs text-gray-400">
+                          {display.subtitle}
+                          {ext.prompt_name && ` · ${ext.prompt_name}@${ext.prompt_version}`}
+                        </p>
                         {ext.review_triggers.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {ext.review_triggers.map((t) => (
@@ -290,7 +397,7 @@ export default function Home() {
                             ))}
                           </div>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -430,9 +537,9 @@ export default function Home() {
             )}
 
             {/* Summarise button */}
-            {activeExtraction && !activeSummary && (
+            {activeExtraction && !hasGroundedSummary && (
               <section className="rounded-xl border border-blue-100 bg-blue-50/50 p-6">
-                <h2 className="mb-2 text-xl font-semibold">Summarise with LLM</h2>
+                <h2 className="mb-2 text-xl font-semibold">Generate Grounded Summary</h2>
                 <p className="mb-4 text-sm text-gray-600">
                   The {activeExtraction.structured_fields.length} extracted field{activeExtraction.structured_fields.length !== 1 ? "s" : ""} above
                   will be injected as grounding constraints so the LLM summary stays
@@ -468,17 +575,20 @@ export default function Home() {
             {activeSummary && (
               <section>
                 <h2 className="mb-4 text-xl font-semibold">
-                  LLM Summary
-                  <span className="ml-2 text-sm font-normal text-gray-400">
-                    {activeSummary.model_used} · {activeSummary.processing_time_ms}ms · grounded by extraction
-                  </span>
+                  {activeSummaryMeta?.label ?? "LLM Summary"}
+                  {(activeSummaryMeta || activeSummary.model_used) && (
+                    <span className="ml-2 text-sm font-normal text-gray-400">
+                      {activeSummary.model_used} · {activeSummary.processing_time_ms}ms
+                      {activeSummaryMeta?.subtitle ? ` · ${activeSummaryMeta.subtitle}` : ""}
+                    </span>
+                  )}
                 </h2>
                 <ExtractionResult result={activeSummary} />
               </section>
             )}
 
             {/* Hierarchical summarisation — uses all chunks via MapReduce */}
-            {activeExtraction && !activeSummary && (
+            {activeExtraction && !hasHierarchicalSummary && (
               <section className="rounded-xl border border-teal-100 bg-teal-50/50 p-6">
                 <h2 className="mb-2 text-xl font-semibold">Hierarchical Summarise</h2>
                 <p className="mb-4 text-sm text-gray-600">

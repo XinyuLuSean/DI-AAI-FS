@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm run typecheck",
+    "check": "pnpm run typecheck && pnpm run build"
   },
   "dependencies": {
     "next": "^15.0.0",

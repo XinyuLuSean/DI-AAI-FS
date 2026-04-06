@@ -193,6 +193,8 @@ class ExtractionListItem(BaseModel):
     document_id: str
     output_type: str
     model_used: str
+    prompt_name: str = ""
+    prompt_version: str = ""
     field_count: int = 0
     has_summary: bool = False
     processing_time_ms: int = 0
@@ -466,6 +468,8 @@ async def list_extractions(document_id: str) -> list[ExtractionListItem]:
             document_id=ext.document_id,
             output_type=ext.output_type,
             model_used=ext.model_used,
+            prompt_name=ext.prompt_name,
+            prompt_version=ext.prompt_version,
             field_count=len(ext.structured_fields),
             has_summary=ext.summary is not None,
             processing_time_ms=ext.processing_time_ms,
@@ -688,18 +692,25 @@ async def summarise(
     grounding_fields = None
     if extraction_id:
         prior = _extractions.get(extraction_id)
-        if prior and prior.document_id == document_id:
-            grounding_fields = prior.structured_fields
-            logger.info(
-                "document.summarise_grounded",
-                doc_id=document_id,
-                extraction_id=extraction_id,
-                grounding_fields=len(grounding_fields),
-            )
+        if prior is None or prior.document_id != document_id:
+            raise HTTPException(status_code=404, detail="Extraction not found")
+        grounding_fields = prior.structured_fields or None
+        logger.info(
+            "document.summarise_grounded",
+            doc_id=document_id,
+            extraction_id=extraction_id,
+            grounding_fields=len(grounding_fields or []),
+        )
 
     prompt_template = None
     if prompt_name:
-        prompt_template = get_prompt(prompt_name, prompt_version)
+        try:
+            prompt_template = get_prompt(prompt_name, prompt_version)
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Prompt '{prompt_name}@{prompt_version}' not found",
+            ) from exc
 
     llm = LLMAdapter(model=model) if model else None
 

@@ -2,7 +2,7 @@
 
 A platform for document ingestion, structured extraction, evidence-backed AI analysis, and human-in-the-loop review.
 
-**Current state:** Document Intelligence Phases 1–12 complete (local development, in-memory storage, synchronous processing). See `FINAL_ARCHITECTURE.md` for the north-star production design and `docs/architecture/SCALE_ANALYSIS.md` for the scaling roadmap.
+**Current state:** Document Intelligence Phases 1–12 and Applied AI Phases 1–13 are implemented in the current local-first repo. The system is still intentionally synchronous and in-memory, but it now includes retrieval comparison, hierarchical summarisation, safe-failure handling, review workflows, and Phase 13 AI ops visibility. See `FINAL_ARCHITECTURE.md` for the north-star production design and `docs/architecture/SCALE_ANALYSIS.md` for the scaling roadmap.
 
 ## What This System Does
 
@@ -22,28 +22,9 @@ Upload file
 ```
 
 Two UI views:
+
 - **Upload page** — document list, upload, extract, summarise, view results with evidence and review status
 - **Review Queue** — prioritised list of items needing human review, with field diff view and correction capabilities
-
----
-
-## Document Intelligence Phases
-
-| Phase | Topic | Key modules |
-|-------|-------|-------------|
-| 0 | Baseline walkthrough | System trace, flow understanding |
-| 1 | Parser depth | `parser.py` — PDF/TXT/MD parsing, failure classification, parse metadata |
-| 2 | Chunking depth | `chunker.py` — fixed-size, paragraph, page-bounded strategies with metadata |
-| 3 | Document routing | `router.py` — heuristic type classification with confidence and reasons |
-| 4 | Deterministic extraction | `extractor.py` — regex fields with evidence, separate from summarisation |
-| 5 | OCR-ready design | `ocr.py` — adapter interface, fallback logic, parse quality signals |
-| 6 | Large document handling | `size_guard.py`, `chunk_selector.py` — size classification, budget-aware chunk selection |
-| 7 | Retrieval-oriented DI | `ranker.py`, `enrichment.py`, `evidence.py`, `section_detector.py` — ranking hooks, metadata enrichment |
-| 8 | Evidence-backed summaries | `grounding.py`, `summariser.py` — grounding audit, evidence packaging, coverage reporting |
-| 9 | Evaluation | `di_eval/` — field scoring, summary evaluation, slice-based metrics |
-| 10 | Pre/postprocessing | `preprocessor.py`, `postprocessor.py`, `pipeline_trace.py` — production pipeline stages |
-| 11 | Human-in-the-loop | `review_queue.py`, `review.py` — reviewable outputs, corrections, feedback signals, review UI |
-| 12 | Scale thought exercise | `docs/architecture/SCALE_ANALYSIS.md` — scaling analysis, workerization, storage roadmap |
 
 ---
 
@@ -129,10 +110,10 @@ DI-AAI-FS/
 │
 ├── docs/
 │   └── architecture/
-│       └── SCALE_ANALYSIS.md   # Phase 12: scaling from MVP to production
+│       └── SCALE_ANALYSIS.md   # Scaling from MVP to production
 │
 └── tests/
-    ├── smoke/                  # 13 test files, 192 tests
+    ├── smoke/                  # smoke coverage for DI + Applied AI phases
     │   ├── test_health.py
     │   ├── test_upload.py
     │   ├── test_chunking.py
@@ -153,14 +134,16 @@ DI-AAI-FS/
 
 ## Prerequisites
 
-| Tool | Required Version | Purpose |
-|------|-----------------|---------|
-| **Python** | 3.12.x | Backend runtime, document processing, AI pipelines |
-| **uv** | ≥ 0.9.16 | Fast Python package manager with workspace support |
-| **Node.js** | ≥ 18, < 23 | Frontend runtime (Next.js) |
-| **pnpm** | 10.x | Node.js package manager with workspace support |
-| **Docker** | modern stable | Container runtime for Postgres, Redis |
-| **Docker Compose** | v2 | Multi-container orchestration |
+
+| Tool               | Required Version | Purpose                                            |
+| ------------------ | ---------------- | -------------------------------------------------- |
+| **Python**         | 3.12.x           | Backend runtime, document processing, AI pipelines |
+| **uv**             | ≥ 0.9.16         | Fast Python package manager with workspace support |
+| **Node.js**        | ≥ 18, < 25       | Frontend runtime (Next.js)                         |
+| **pnpm**           | 10.x             | Node.js package manager with workspace support     |
+| **Docker**         | modern stable    | Container runtime for Postgres, Redis              |
+| **Docker Compose** | v2               | Multi-container orchestration                      |
+
 
 Quick check: `zsh scripts/dev/check-env.sh`
 
@@ -206,7 +189,7 @@ Verify: `curl http://localhost:8000/health` → `{"status":"ok","service":"py-ap
 pnpm dev:web
 ```
 
-Open http://localhost:3000
+Open [http://localhost:3000](http://localhost:3000)
 
 ### 6. Test the flow
 
@@ -217,51 +200,55 @@ Open http://localhost:3000
 5. Navigate to **Review Queue** → see items prioritised by review triggers
 6. Approve, reject, or correct extracted fields with side-by-side diff
 
-### 7. Run tests
+### 7. Run checks
 
 ```bash
-uv run pytest tests/ -v
+pnpm run check
 ```
 
-Expected: 192 passed, 1 skipped.
+This runs the Python test suite plus the web typecheck/build flow. For backend-only verification, use `pnpm run test:py`.
 
 ---
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Service health check |
-| POST | `/documents/upload` | Upload and parse a file |
-| GET | `/documents` | List all documents (lightweight) |
-| GET | `/documents/{id}` | Get document with full detail |
-| GET | `/documents/{id}/extractions` | List extractions with review status |
-| GET | `/documents/{id}/extractions/{eid}` | Get extraction result |
-| POST | `/documents/{id}/extract` | Run deterministic field extraction |
-| POST | `/documents/{id}/summarise` | Run AI summarisation with grounding |
-| POST | `/documents/{id}/search` | Search chunks with ranking |
-| GET | `/documents/{id}/chunks/debug` | Debug view of all chunks |
-| GET | `/documents/review-queue` | Get review queue sorted by priority |
-| POST | `/documents/{id}/extractions/{eid}/review` | Submit review decision |
-| GET | `/documents/{id}/extractions/{eid}/review` | Get review status |
-| POST | `/documents/{id}/extractions/{eid}/correct` | Submit field corrections |
+
+| Method | Path                                        | Description                         |
+| ------ | ------------------------------------------- | ----------------------------------- |
+| GET    | `/health`                                   | Service health check                |
+| POST   | `/documents/upload`                         | Upload and parse a file             |
+| GET    | `/documents`                                | List all documents (lightweight)    |
+| GET    | `/documents/{id}`                           | Get document with full detail       |
+| GET    | `/documents/{id}/extractions`               | List extractions with review status |
+| GET    | `/documents/{id}/extractions/{eid}`         | Get extraction result               |
+| POST   | `/documents/{id}/extract`                   | Run deterministic field extraction  |
+| POST   | `/documents/{id}/summarise`                 | Run AI summarisation with grounding |
+| POST   | `/documents/{id}/search`                    | Search chunks with ranking          |
+| GET    | `/documents/{id}/chunks/debug`              | Debug view of all chunks            |
+| GET    | `/documents/review-queue`                   | Get review queue sorted by priority |
+| POST   | `/documents/{id}/extractions/{eid}/review`  | Submit review decision              |
+| GET    | `/documents/{id}/extractions/{eid}/review`  | Get review status                   |
+| POST   | `/documents/{id}/extractions/{eid}/correct` | Submit field corrections            |
+
 
 ---
 
 ## Architecture Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| **In-memory document store** | Simplest path to a working demo. PostgreSQL is the next step (see `SCALE_ANALYSIS.md`). |
-| **Synchronous pipeline** | No worker queue yet. All stages run in the API process. |
-| **LiteLLM adapter** | Provider-agnostic LLM calls. Can swap OpenAI ↔ Anthropic ↔ local. |
-| **Three chunking strategies** | Fixed-size (baseline), paragraph-aware, page-bounded — configurable per request. |
-| **Separate extraction and summarisation** | Deterministic fields evaluated on precision/recall; summaries on coverage/grounding. |
-| **Heuristic routing** | Filename + content keyword heuristics. ML classification is a future upgrade. |
-| **OCR as adapter stub** | Interface exists; Tesseract/Textract can be wired without changing pipeline. |
-| **HITL as first-class** | Review triggers, priority scoring, and correction capture built into the pipeline. |
-| **Local file storage** | Filesystem adapter with the same interface S3 will use. |
-| **No auth** | MVP is local-only. Auth is a future concern. |
+
+| Decision                                  | Rationale                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------- |
+| **In-memory document store**              | Simplest path to a working demo. PostgreSQL is the next step (see `SCALE_ANALYSIS.md`). |
+| **Synchronous pipeline**                  | No worker queue yet. All stages run in the API process.                                 |
+| **LiteLLM adapter**                       | Provider-agnostic LLM calls. Can swap OpenAI ↔ Anthropic ↔ local.                       |
+| **Three chunking strategies**             | Fixed-size (baseline), paragraph-aware, page-bounded — configurable per request.        |
+| **Separate extraction and summarisation** | Deterministic fields evaluated on precision/recall; summaries on coverage/grounding.    |
+| **Heuristic routing**                     | Filename + content keyword heuristics. ML classification is a future upgrade.           |
+| **OCR as adapter stub**                   | Interface exists; Tesseract/Textract can be wired without changing pipeline.            |
+| **HITL as first-class**                   | Review triggers, priority scoring, and correction capture built into the pipeline.      |
+| **Local file storage**                    | Filesystem adapter with the same interface S3 will use.                                 |
+| **No auth**                               | MVP is local-only. Auth is a future concern.                                            |
+
 
 ---
 
@@ -289,7 +276,7 @@ Following the build order from `FINAL_ARCHITECTURE.md`:
 6. ~~AI summarisation with strict JSON output~~ ✓
 7. ~~Evidence display in UI~~ ✓
 8. ~~Local Docker Compose~~ ✓
-9. ~~Smoke tests (192 tests across 13 test files)~~ ✓
+9. ~~Smoke tests and eval coverage~~ ✓
 10. ~~Document routing and type classification~~ ✓
 11. ~~Deterministic field extraction~~ ✓
 12. ~~OCR-ready design~~ ✓
@@ -302,5 +289,6 @@ Following the build order from `FINAL_ARCHITECTURE.md`:
 19. ~~Scale analysis and architecture note~~ ✓
 20. PostgreSQL persistence (replace in-memory store)
 21. Worker-based async processing (Redis queues)
-22. Embedding-based retrieval (pgvector)
-23. BFF gateway layer
+22. Durable job state + distributed AI ops metrics
+23. Auth + multi-user review workflows
+
