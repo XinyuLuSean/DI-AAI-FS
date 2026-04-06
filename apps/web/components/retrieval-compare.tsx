@@ -14,6 +14,8 @@ const STRATEGY_LABELS: Record<string, string> = {
   sampled: "Sampled",
   routing_aware: "Routing-Aware",
   query_ranked: "Query-Ranked",
+  vector: "Vector (embedding)",
+  hybrid: "Hybrid (RRF)",
 };
 
 const STRATEGY_COLORS: Record<string, string> = {
@@ -22,11 +24,24 @@ const STRATEGY_COLORS: Record<string, string> = {
   sampled: "bg-amber-100 text-amber-700",
   routing_aware: "bg-purple-100 text-purple-700",
   query_ranked: "bg-emerald-100 text-emerald-700",
+  vector: "bg-cyan-100 text-cyan-700",
+  hybrid: "bg-rose-100 text-rose-700",
+};
+
+const PIPELINE_ICONS: Record<string, string> = {
+  head: "📄",
+  head_tail: "📄",
+  sampled: "🎲",
+  routing_aware: "🔀",
+  query_ranked: "🔍",
+  vector: "🧠",
+  hybrid: "⚡",
 };
 
 export function RetrievalCompare({ documentId }: Props) {
   const [query, setQuery] = useState("");
   const [maxChunks, setMaxChunks] = useState(5);
+  const [includeHybrid, setIncludeHybrid] = useState(false);
   const [report, setReport] = useState<ComparisonReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +52,7 @@ export function RetrievalCompare({ documentId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const data = await compareRetrievalStrategies(documentId, query, maxChunks);
+      const data = await compareRetrievalStrategies(documentId, query, maxChunks, includeHybrid);
       setReport(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Comparison failed");
@@ -51,17 +66,17 @@ export function RetrievalCompare({ documentId }: Props) {
       <h3 className="mb-4 text-lg font-semibold">Retrieval Strategy Comparison</h3>
       <p className="mb-4 text-sm text-gray-500">
         Compare how different chunk selection strategies choose context for a given query.
-        This shows why retrieval-based selection matters for long documents.
+        {includeHybrid && " With vector and hybrid pipelines enabled."}
       </p>
 
-      <div className="flex gap-3 mb-4">
+      <div className="flex gap-3 mb-4 flex-wrap">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleCompare(); }}
           placeholder="Enter a query (e.g., 'patient diagnosis treatment')"
-          className="flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-300"
+          className="flex-1 min-w-[200px] rounded-lg border border-gray-200 px-4 py-2 text-sm focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-300"
         />
         <select
           value={maxChunks}
@@ -72,6 +87,15 @@ export function RetrievalCompare({ documentId }: Props) {
             <option key={n} value={n}>{n} chunks</option>
           ))}
         </select>
+        <label className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeHybrid}
+            onChange={(e) => setIncludeHybrid(e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          <span>Vector + Hybrid</span>
+        </label>
         <button
           onClick={handleCompare}
           disabled={loading || !query.trim()}
@@ -90,7 +114,7 @@ export function RetrievalCompare({ documentId }: Props) {
       {report && (
         <div className="space-y-4">
           {/* Recommendation */}
-          <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4 text-sm text-blue-800">
+          <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4 text-sm text-blue-800 whitespace-pre-line">
             {report.recommendation}
           </div>
 
@@ -98,6 +122,7 @@ export function RetrievalCompare({ documentId }: Props) {
           <div className="flex flex-wrap gap-4 text-xs text-gray-500">
             <span>Total chunks: <span className="font-medium text-gray-700">{report.total_chunks_available}</span></span>
             <span>Budget: <span className="font-medium text-gray-700">{report.max_chunks}</span></span>
+            <span>Strategies: <span className="font-medium text-gray-700">{report.strategies.length}</span></span>
             <span>Query: <span className="font-mono text-gray-700">{report.query}</span></span>
           </div>
 
@@ -109,15 +134,18 @@ export function RetrievalCompare({ documentId }: Props) {
                 ? sr.chunks.reduce((s, c) => s + c.relevance_score, 0) / sr.chunks.length
                 : 0;
               const uniqueIds = report.unique_to[sr.strategy] || [];
+              const isAdvanced = sr.strategy === "vector" || sr.strategy === "hybrid";
 
               return (
                 <div
                   key={sr.strategy}
-                  className="rounded-lg border border-gray-200 p-4"
+                  className={`rounded-lg border p-4 ${
+                    isAdvanced ? "border-blue-200 bg-blue-50/20" : "border-gray-200"
+                  }`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STRATEGY_COLORS[sr.strategy] || "bg-gray-100 text-gray-700"}`}>
-                      {STRATEGY_LABELS[sr.strategy] || sr.strategy}
+                      {PIPELINE_ICONS[sr.strategy] || "📦"} {STRATEGY_LABELS[sr.strategy] || sr.strategy}
                     </span>
                     <span className="text-xs text-gray-400">
                       avg: {avgScore.toFixed(2)}

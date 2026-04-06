@@ -210,3 +210,118 @@ def _recommend(
             )
 
     return f"Best average relevance: {best_strat} ({best_avg:.2f})"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Extended comparison with vector + hybrid pipelines (Phase 6)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def compare_with_hybrid(
+    doc: Document,
+    query: str,
+    max_chunks: int = 5,
+    embedding_adapter: object | None = None,
+) -> ComparisonReport:
+    """Extended comparison: positional + lexical + vector + hybrid pipelines.
+
+    Runs all Phase 5 strategies PLUS:
+      - vector: embedding-based retrieval
+      - hybrid: lexical + vector + salience → RRF fusion
+
+    When embedding_adapter is None, uses HashEmbeddingAdapter for testing.
+    """
+    from ai_core.embedding import EmbeddingAdapter, HashEmbeddingAdapter
+    from di_core.reranker import HybridRetriever, VectorRanker
+    from di_core.vector_index import VectorIndex
+
+    base_report = compare_strategies(doc, query, max_chunks)
+
+    adapter: EmbeddingAdapter = (
+        embedding_adapter  # type: ignore[assignment]
+        if embedding_adapter is not None
+        else HashEmbeddingAdapter(dim=64)
+    )
+
+    index = VectorIndex()
+    texts = [c.text for c in doc.chunks]
+    ids = [c.chunk_id for c in doc.chunks]
+    vectors = adapter.embed_batch(texts)
+    index.add_batch(ids, vectors)
+
+    all_scores = _score_chunks(doc.chunks, query) if query else {}
+
+    vector_ranker = VectorRanker(adapter, index)
+    vec_ranked = vector_ranker.rank(doc.chunks, query, top_k=max_chunks)
+    vec_selections = [
+        ChunkSelection(
+            chunk_id=r.chunk.chunk_id,
+            index=r.chunk.index,
+            page_numbers=r.chunk.page_numbers,
+            section_label=r.chunk.section_label,
+            relevance_score=all_scores.get(r.chunk.chunk_id, 0.0),
+            text_preview=r.chunk.text[:PREVIEW_MAX].replace("\n", " "),
+        )
+        for r in vec_ranked
+    ]
+    vec_ids = [r.chunk.chunk_id for r in vec_ranked]
+    base_report.strategies.append(StrategyResult(
+        strategy="vector",
+        chunks=vec_selections,
+        chunk_ids=vec_ids,
+    ))
+
+    retriever = HybridRetriever(adapter, index)
+    hybrid_result = retriever.retrieve(doc.chunks, query, top_k=max_chunks)
+    hybrid_selections = [
+        ChunkSelection(
+            chunk_id=r.chunk.chunk_id,
+            index=r.chunk.index,
+            page_numbers=r.chunk.page_numbers,
+            section_label=r.chunk.section_label,
+            relevance_score=all_scores.get(r.chunk.chunk_id, 0.0),
+            text_preview=r.chunk.text[:PREVIEW_MAX].replace("\n", " "),
+        )
+        for r in hybrid_result.fused_results
+    ]
+    hybrid_ids = [r.chunk.chunk_id for r in hybrid_result.fused_results]
+    base_report.strategies.append(StrategyResult(
+        strategy="hybrid",
+        chunks=hybrid_selections,
+        chunk_ids=hybrid_ids,
+    ))
+
+    all_id_sets: dict[str, set[str]] = {
+        sr.strategy: set(sr.chunk_ids)
+        for sr in base_report.strategies
+    }
+
+    overlap: dict[str, dict[str, int]] = {}
+    for s1 in all_id_sets:
+        overlap[s1] = {}
+        for s2 in all_id_sets:
+            overlap[s1][s2] = len(all_id_sets[s1] & all_id_sets[s2])
+    base_report.overlap_matrix = overlap
+
+    unique_to: dict[str, list[str]] = {}
+    for name, ids_set in all_id_sets.items():
+        others = set()
+        for other_name, other_ids in all_id_sets.items():
+            if other_name != name:
+                others |= other_ids
+        unique = ids_set - others
+        if unique:
+            unique_to[name] = sorted(unique)
+    base_report.unique_to = unique_to
+
+    hybrid_sr = next((s for s in base_report.strategies if s.strategy == "hybrid"), None)
+    head_sr = next((s for s in base_report.strategies if s.strategy == "head"), None)
+    if hybrid_sr and head_sr and hybrid_sr.chunks and head_sr.chunks:
+        h_avg = sum(c.relevance_score for c in head_sr.chunks) / len(head_sr.chunks)
+        hy_avg = sum(c.relevance_score for c in hybrid_sr.chunks) / len(hybrid_sr.chunks)
+        base_report.recommendation += (
+            f" | Hybrid pipeline (lexical+vector+salience→RRF): "
+            f"avg relevance {hy_avg:.2f} vs head {h_avg:.2f}."
+        )
+
+    return base_report

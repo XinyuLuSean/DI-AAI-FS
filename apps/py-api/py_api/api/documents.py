@@ -51,6 +51,7 @@ from di_core import (
     chunk_text,
     classify_document_size,
     compare_strategies,
+    compare_with_hybrid,
     create_reviewable_output,
     enrich_chunks_for_retrieval,
     extract_fields,
@@ -113,6 +114,7 @@ class SearchResult(BaseModel):
 class CompareRequest(BaseModel):
     query: str
     max_chunks: int = Field(default=5, ge=1, le=50)
+    include_hybrid: bool = Field(default=False)
 
 
 class SubmitReviewRequest(BaseModel):
@@ -547,9 +549,14 @@ async def retrieval_compare(
     if not doc.chunks:
         raise HTTPException(status_code=422, detail="Document has no chunks")
 
-    report = compare_strategies(
-        doc, query=body.query, max_chunks=body.max_chunks,
-    )
+    if body.include_hybrid:
+        report = compare_with_hybrid(
+            doc, query=body.query, max_chunks=body.max_chunks,
+        )
+    else:
+        report = compare_strategies(
+            doc, query=body.query, max_chunks=body.max_chunks,
+        )
 
     logger.info(
         "document.retrieval_compare",

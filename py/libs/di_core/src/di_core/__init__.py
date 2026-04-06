@@ -8,7 +8,16 @@ from di_core.parser import parse_document
 from di_core.pipeline_trace import log_pipeline_summary, trace_stage
 from di_core.postprocessor import PostprocessMeta, postprocess_extraction
 from di_core.preprocessor import PreprocessConfig, PreprocessMeta, preprocess_document
-from di_core.retrieval_compare import ComparisonReport, compare_strategies
+from di_core.reranker import (
+    CrossEncoderReranker,
+    HybridRetrievalResult,
+    HybridRetriever,
+    Reranker,
+    ScoreFusionReranker,
+    VectorRanker,
+)
+from di_core.retrieval_compare import ComparisonReport, compare_strategies, compare_with_hybrid
+from di_core.vector_index import VectorIndex, VectorSearchResult
 from di_core.ranker import (
     ChunkRanker,
     EmbeddingRanker,
@@ -41,12 +50,21 @@ __all__ = [
     "chunk_text",
     "ChunkRanker",
     "ComparisonReport",
+    "CrossEncoderReranker",
     "EmbeddingRanker",
+    "HybridRetrievalResult",
+    "HybridRetriever",
     "LexicalRanker",
     "RankedChunk",
+    "Reranker",
     "SalienceRanker",
+    "ScoreFusionReranker",
+    "VectorIndex",
+    "VectorRanker",
+    "VectorSearchResult",
     "classify_document_size",
     "compare_strategies",
+    "compare_with_hybrid",
     "classify_review_triggers",
     "compute_review_priority",
     "create_reviewable_output",

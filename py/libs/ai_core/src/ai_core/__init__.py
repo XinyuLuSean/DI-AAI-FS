@@ -1,5 +1,10 @@
 from ai_core.adapter import LLMAdapter
 from ai_core.chronology import extract_chronology
+from ai_core.embedding import (
+    EmbeddingAdapter,
+    HashEmbeddingAdapter,
+    LiteLLMEmbeddingAdapter,
+)
 from ai_core.grounding import (
     ClaimEvidence,
     EvidenceGapAnalysis,
@@ -42,9 +47,12 @@ __all__ = [
     "AITask",
     "CHRONOLOGY_V1",
     "ClaimEvidence",
+    "EmbeddingAdapter",
     "EvidenceGapAnalysis",
     "GROUNDED_SUMMARISE_V1",
+    "HashEmbeddingAdapter",
     "LLMAdapter",
+    "LiteLLMEmbeddingAdapter",
     "LLMChronologyOutput",
     "LLMSummarisationOutput",
     "PromptTemplate",

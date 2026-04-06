@@ -87,13 +87,14 @@ export async function compareRetrievalStrategies(
   documentId: string,
   query: string,
   maxChunks: number = 5,
+  includeHybrid: boolean = false,
 ) {
   const res = await fetch(
     `${API_BASE}/documents/${documentId}/retrieval-compare`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, max_chunks: maxChunks }),
+      body: JSON.stringify({ query, max_chunks: maxChunks, include_hybrid: includeHybrid }),
     },
   );
 

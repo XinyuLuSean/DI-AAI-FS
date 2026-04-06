@@ -140,12 +140,22 @@ class SalienceRanker(ChunkRanker):
 
 
 class EmbeddingRanker(ChunkRanker):
-    """Stub for future embedding-based retrieval.
+    """Embedding-based retrieval (Phase 6).
 
-    Raises NotImplementedError until an embedding model and vector index
-    are integrated.  The interface is defined now so the ranking pipeline
-    can be designed around it.
+    Delegates to VectorRanker when an EmbeddingAdapter and VectorIndex
+    are provided.  Falls back to NotImplementedError if constructed
+    without them (backward-compatible with pre-Phase-6 code).
     """
+
+    def __init__(
+        self,
+        adapter: object | None = None,
+        index: object | None = None,
+    ) -> None:
+        self._delegate: ChunkRanker | None = None
+        if adapter is not None and index is not None:
+            from di_core.reranker import VectorRanker
+            self._delegate = VectorRanker(adapter, index)  # type: ignore[arg-type]
 
     def rank(
         self,
@@ -153,9 +163,12 @@ class EmbeddingRanker(ChunkRanker):
         query: str,
         top_k: int = 10,
     ) -> list[RankedChunk]:
+        if self._delegate:
+            return self._delegate.rank(chunks, query, top_k=top_k)
         raise NotImplementedError(
-            "EmbeddingRanker requires an embedding model and vector index. "
-            "Use LexicalRanker or SalienceRanker for now."
+            "EmbeddingRanker requires an EmbeddingAdapter and VectorIndex. "
+            "Use LexicalRanker or SalienceRanker for now, or pass "
+            "adapter and index to enable vector retrieval."
         )
 
 
