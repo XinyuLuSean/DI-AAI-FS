@@ -35,6 +35,43 @@ export function ExtractionResult({ result }: Props) {
         <span>ID: {result.id}</span>
       </div>
 
+      {/* Validation status banner (Phase 2) */}
+      {result.validation_status && result.validation_status !== "valid" && (
+        <div
+          className={`rounded-lg border p-4 text-xs ${
+            result.validation_status === "missing_required" || result.validation_status === "wrong_structure"
+              ? "border-red-200 bg-red-50"
+              : "border-amber-200 bg-amber-50"
+          }`}
+        >
+          <h4
+            className={`text-sm font-medium ${
+              result.validation_status === "missing_required" || result.validation_status === "wrong_structure"
+                ? "text-red-700"
+                : "text-amber-700"
+            }`}
+          >
+            Schema Validation: {result.validation_status.replace(/_/g, " ")}
+          </h4>
+          {result.validation_warnings.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {result.validation_warnings.map((w, i) => (
+                <p
+                  key={i}
+                  className={
+                    result.validation_status === "missing_required" || result.validation_status === "wrong_structure"
+                      ? "text-red-600"
+                      : "text-amber-600"
+                  }
+                >
+                  {w}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Grounding audit banner (Phase 8C) */}
       {result.grounding_audit && (
         <GroundingAuditPanel audit={result.grounding_audit} />

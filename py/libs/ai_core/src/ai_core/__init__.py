@@ -10,17 +10,29 @@ from ai_core.prompts import (
     register_prompt,
 )
 from ai_core.summariser import summarise_document
+from ai_core.validation import (
+    LLMSummarisationOutput,
+    ValidationIssue,
+    ValidationResult,
+    ValidationStatus,
+    validate_summarisation_output,
+)
 
 __all__ = [
     "GROUNDED_SUMMARISE_V1",
     "LLMAdapter",
+    "LLMSummarisationOutput",
     "PromptTemplate",
     "SUMMARISE_V1",
     "TaskType",
+    "ValidationIssue",
+    "ValidationResult",
+    "ValidationStatus",
     "audit_grounding",
     "enrich_summarisation_meta",
     "get_prompt",
     "list_prompts",
     "register_prompt",
     "summarise_document",
+    "validate_summarisation_output",
 ]

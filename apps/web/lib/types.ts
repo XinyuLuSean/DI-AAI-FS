@@ -199,6 +199,8 @@ export interface SummarisationMeta {
   warnings: string[];
 }
 
+export type ValidationStatus = "valid" | "partial_recovery" | "missing_required" | "wrong_structure";
+
 export interface ExtractionResponse {
   id: string;
   document_id: string;
@@ -210,6 +212,8 @@ export interface ExtractionResponse {
   summary: SummaryResult | null;
   grounding_audit: GroundingAudit | null;
   summarisation_meta: SummarisationMeta | null;
+  validation_status: ValidationStatus;
+  validation_warnings: string[];
   created_at: string;
   processing_time_ms: number;
 }

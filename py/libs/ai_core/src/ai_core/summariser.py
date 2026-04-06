@@ -1,12 +1,12 @@
 """Document summarisation workflow.
 
 Orchestrates: select chunks → resolve prompt template → build prompt
-→ call LLM → validate grounding → package evidence → return structured
-output with audit trail.
+→ call LLM → validate output schema → audit grounding → package evidence
+→ return structured output with audit trail.
 
 This is the first AI task in the vertical slice.  It demonstrates:
 - prompt templates as first-class objects (Phase 1)
-- strict JSON output via the adapter
+- strict schema validation with failure classification (Phase 2)
 - evidence references back to source chunks
 - grounding by pre-extracted deterministic fields (when available)
 - budget-aware chunk selection with explicit coverage reporting
@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import time
 from typing import Any
+
+import structlog
 
 from data_model import (
     ChunkSelectionStrategy,
@@ -36,8 +38,14 @@ from ai_core.prompts import (
     PromptTemplate,
     build_summarise_user_prompt,
 )
+from ai_core.validation import (
+    ValidationStatus,
+    validate_summarisation_output,
+)
 from di_core.chunk_selector import select_chunks_for_llm
 from di_core.evidence import package_evidence_from_ids
+
+logger = structlog.get_logger()
 
 
 def summarise_document(
@@ -50,7 +58,7 @@ def summarise_document(
 ) -> ExtractionResult:
     """Run summarisation over a budget-selected subset of chunks.
 
-    Pipeline: select → prompt → LLM → audit grounding → package evidence.
+    Pipeline: select → prompt → LLM → validate → audit grounding → package evidence.
 
     If prompt_template is not provided, the appropriate default is chosen
     based on whether grounding_fields are present.
@@ -92,11 +100,55 @@ def summarise_document(
         user_prompt=user_prompt,
     )
 
+    # ── Validate LLM output (Phase 2) ────────────────────────────────
+    vr = validate_summarisation_output(raw)
+
+    validation_warnings: list[str] = [
+        f"[{issue.field}] {issue.issue}" for issue in vr.issues
+    ]
+
+    if not vr.ok:
+        logger.warning(
+            "summariser.validation_failed",
+            doc_id=doc.id,
+            status=vr.status.value,
+            errors=vr.error_count,
+            warnings=vr.warning_count,
+            issues=validation_warnings,
+        )
+        elapsed_ms = int((time.perf_counter_ns() - start) / 1_000_000)
+        return ExtractionResult(
+            document_id=doc.id,
+            output_type=OutputType.AI_SUMMARY,
+            model_used=llm.model,
+            prompt_name=template.name,
+            prompt_version=template.version,
+            summary=SummaryResult(summary_text=""),
+            summarisation_meta=summarisation_meta,
+            validation_status=vr.status.value,
+            validation_warnings=validation_warnings,
+            processing_time_ms=elapsed_ms,
+        )
+
+    validated = vr.output
+    assert validated is not None  # guaranteed by vr.ok
+
+    if vr.status == ValidationStatus.PARTIAL_RECOVERY:
+        logger.info(
+            "summariser.validation_partial",
+            doc_id=doc.id,
+            warnings=vr.warning_count,
+            issues=validation_warnings,
+        )
+
     # ── Grounding audit ──────────────────────────────────────────────
-    used_ids: list[str] = raw.get("chunk_ids_used", [])
+    used_ids: list[str] = validated.chunk_ids_used
     evidence = package_evidence_from_ids(used_ids, chunk_map)
 
-    raw_key_points = raw.get("key_points", [])
+    raw_key_points = [
+        {"point": kp.point, "chunk_ids": kp.chunk_ids}
+        for kp in validated.key_points
+    ]
     grounded_points, grounding_audit_result = audit_grounding(
         raw_key_points, used_ids, provided_ids, chunk_map,
     )
@@ -108,18 +160,18 @@ def summarise_document(
     # ── Structured fields from LLM ───────────────────────────────────
     fields = [
         StructuredField(
-            field_name=f.get("field_name", ""),
-            field_value=f.get("field_value", ""),
-            confidence=float(f.get("confidence", 0.0)),
+            field_name=sf.field_name,
+            field_value=sf.field_value,
+            confidence=sf.confidence,
             extraction_method="llm",
             evidence=evidence,
         )
-        for f in raw.get("structured_fields", [])
+        for sf in validated.structured_fields
     ]
 
     # ── Assemble result ──────────────────────────────────────────────
     summary = SummaryResult(
-        summary_text=raw.get("summary_text", ""),
+        summary_text=validated.summary_text,
         key_points=plain_key_points,
         grounded_key_points=grounded_points,
         evidence=evidence,
@@ -142,5 +194,7 @@ def summarise_document(
         summary=summary,
         grounding_audit=grounding_audit_result,
         summarisation_meta=summarisation_meta,
+        validation_status=vr.status.value,
+        validation_warnings=validation_warnings,
         processing_time_ms=elapsed_ms,
     )
