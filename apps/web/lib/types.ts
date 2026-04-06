@@ -172,7 +172,23 @@ export interface SummaryResult {
   grounding_coverage: number;
 }
 
-export type OutputType = "deterministic" | "ai_summary";
+export interface ChronologyEvent {
+  date_raw: string;
+  date_normalised: string;
+  description: string;
+  chunk_ids: string[];
+  page_numbers: number[];
+  evidence_snippets: string[];
+  grounded: boolean;
+}
+
+export interface ChronologyResult {
+  events: ChronologyEvent[];
+  evidence: EvidenceReference[];
+  grounding_coverage: number;
+}
+
+export type OutputType = "deterministic" | "ai_summary" | "ai_chronology";
 
 export interface GroundingAudit {
   chunks_provided: number;
@@ -240,6 +256,7 @@ export interface ExtractionResponse {
   prompt_version: string;
   structured_fields: StructuredField[];
   summary: SummaryResult | null;
+  chronology: ChronologyResult | null;
   grounding_audit: GroundingAudit | null;
   summarisation_meta: SummarisationMeta | null;
   evidence_gap: EvidenceGapAnalysis | null;

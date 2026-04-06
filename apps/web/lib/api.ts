@@ -71,6 +71,18 @@ export async function summariseDocument(
   return res.json();
 }
 
+export async function extractChronology(documentId: string) {
+  const url = `${API_BASE}/documents/${documentId}/chronology`;
+  const res = await fetch(url, { method: "POST" });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(extractErrorMessage(body.detail, `Chronology extraction failed (${res.status})`));
+  }
+
+  return res.json();
+}
+
 // ── Document & extraction list API ───────────────────────────────────────
 
 export async function fetchDocuments() {

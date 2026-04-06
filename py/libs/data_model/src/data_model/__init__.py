@@ -16,6 +16,8 @@ from data_model.document import (
     SectionLabel,
 )
 from data_model.extraction import (
+    ChronologyEvent,
+    ChronologyResult,
     ChunkSelectionStrategy,
     EvidenceReference,
     ExtractionMethod,
@@ -61,6 +63,8 @@ __all__ = [
     "DocumentSource",
     "DocumentStatus",
     "DocumentType",
+    "ChronologyEvent",
+    "ChronologyResult",
     "ChunkSelectionStrategy",
     "EvidenceReference",
     "EvidenceMismatchReport",

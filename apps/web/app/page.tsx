@@ -5,6 +5,7 @@ import { UploadPanel } from "@/components/upload-panel";
 import { DocumentViewer } from "@/components/document-viewer";
 import { ExtractionResult } from "@/components/extraction-result";
 import {
+  extractChronology,
   extractDocument,
   fetchDocument,
   fetchDocumentExtractions,
@@ -41,8 +42,12 @@ export default function Home() {
   // Active extraction view
   const [activeExtraction, setActiveExtraction] = useState<ExtractionResponse | null>(null);
   const [activeSummary, setActiveSummary] = useState<ExtractionResponse | null>(null);
+  const [activeChronology, setActiveChronology] = useState<ExtractionResponse | null>(null);
 
-  const [loading, setLoading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [summarising, setSummarising] = useState(false);
+  const [chronologising, setChronologising] = useState(false);
+  const loading = extracting || summarising || chronologising;
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
 
@@ -66,6 +71,7 @@ export default function Home() {
     setSelectedDocId(docId);
     setActiveExtraction(null);
     setActiveSummary(null);
+    setActiveChronology(null);
     setError(null);
     try {
       const [doc, exts] = await Promise.all([
@@ -78,6 +84,7 @@ export default function Home() {
       if (exts.length > 0) {
         const det = exts.find((e: ExtractionListItem) => e.output_type === "deterministic");
         const sum = exts.find((e: ExtractionListItem) => e.output_type === "ai_summary");
+        const chr = exts.find((e: ExtractionListItem) => e.output_type === "ai_chronology");
         if (det) {
           const full = await getExtraction(docId, det.id);
           setActiveExtraction(full);
@@ -85,6 +92,10 @@ export default function Home() {
         if (sum) {
           const full = await getExtraction(docId, sum.id);
           setActiveSummary(full);
+        }
+        if (chr) {
+          const full = await getExtraction(docId, chr.id);
+          setActiveChronology(full);
         }
       }
     } catch (e: unknown) {
@@ -226,9 +237,15 @@ export default function Home() {
                           <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                             ext.output_type === "deterministic"
                               ? "bg-gray-100 text-gray-700"
-                              : "bg-purple-100 text-purple-700"
+                              : ext.output_type === "ai_chronology"
+                                ? "bg-indigo-100 text-indigo-700"
+                                : "bg-purple-100 text-purple-700"
                           }`}>
-                            {ext.output_type === "deterministic" ? "Extraction" : "AI Summary"}
+                            {ext.output_type === "deterministic"
+                              ? "Extraction"
+                              : ext.output_type === "ai_chronology"
+                                ? "AI Chronology"
+                                : "AI Summary"}
                           </span>
                           {rs && (
                             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${rs.bg} ${rs.text}`}>
@@ -262,7 +279,7 @@ export default function Home() {
               <section>
                 <button
                   onClick={async () => {
-                    setLoading(true);
+                    setExtracting(true);
                     setError(null);
                     try {
                       const data: ExtractionResponse = await extractDocument(document.id);
@@ -272,13 +289,13 @@ export default function Home() {
                     } catch (e: unknown) {
                       setError(e instanceof Error ? e.message : "Extraction failed");
                     } finally {
-                      setLoading(false);
+                      setExtracting(false);
                     }
                   }}
-                  disabled={loading}
+                  disabled={extracting}
                   className="rounded-lg bg-gray-900 px-6 py-3 font-medium text-white transition hover:bg-gray-800 disabled:opacity-50"
                 >
-                  {loading ? "Extracting..." : "Extract Fields (instant)"}
+                  {extracting ? "Extracting..." : "Extract Fields (instant)"}
                 </button>
                 <p className="mt-2 text-xs text-gray-400">
                   Regex/heuristic extraction — no LLM, no cost, instant results.
@@ -310,7 +327,7 @@ export default function Home() {
                 </p>
                 <button
                   onClick={async () => {
-                    setLoading(true);
+                    setSummarising(true);
                     setError(null);
                     try {
                       const data: ExtractionResponse = await summariseDocument(
@@ -323,13 +340,13 @@ export default function Home() {
                     } catch (e: unknown) {
                       setError(e instanceof Error ? e.message : "Summarisation failed");
                     } finally {
-                      setLoading(false);
+                      setSummarising(false);
                     }
                   }}
-                  disabled={loading}
+                  disabled={summarising}
                   className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {loading ? "Summarising..." : "Summarise (LLM, grounded)"}
+                  {summarising ? "Summarising..." : "Summarise (LLM, grounded)"}
                 </button>
               </section>
             )}
@@ -344,6 +361,50 @@ export default function Home() {
                   </span>
                 </h2>
                 <ExtractionResult result={activeSummary} />
+              </section>
+            )}
+
+            {/* Chronology button — available once we have chunks */}
+            {activeExtraction && !activeChronology && (
+              <section className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-6">
+                <h2 className="mb-2 text-xl font-semibold">Extract Timeline</h2>
+                <p className="mb-4 text-sm text-gray-600">
+                  Extract a chronological timeline of dated events from the document.
+                  This is a separate AI task with its own prompt, schema, and evaluation criteria.
+                </p>
+                <button
+                  onClick={async () => {
+                    setChronologising(true);
+                    setError(null);
+                    try {
+                      const data: ExtractionResponse = await extractChronology(document.id);
+                      setActiveChronology(data);
+                      await loadDocuments();
+                      await refreshExtractions();
+                    } catch (e: unknown) {
+                      setError(e instanceof Error ? e.message : "Chronology extraction failed");
+                    } finally {
+                      setChronologising(false);
+                    }
+                  }}
+                  disabled={chronologising}
+                  className="rounded-lg bg-indigo-600 px-6 py-3 font-medium text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {chronologising ? "Extracting timeline..." : "Extract Timeline (LLM)"}
+                </button>
+              </section>
+            )}
+
+            {/* Chronology results */}
+            {activeChronology && (
+              <section>
+                <h2 className="mb-4 text-xl font-semibold">
+                  Document Timeline
+                  <span className="ml-2 text-sm font-normal text-gray-400">
+                    {activeChronology.model_used} · {activeChronology.processing_time_ms}ms
+                  </span>
+                </h2>
+                <ExtractionResult result={activeChronology} />
               </section>
             )}
           </>

@@ -592,6 +592,52 @@ async def summarise(
     return result
 
 
+@router.post("/{document_id}/chronology")
+async def chronology(
+    document_id: str,
+    max_chunks: int = Query(default=10, ge=1, le=100),
+    chunk_selection: ChunkSelectionStrategy = Query(
+        default=ChunkSelectionStrategy.HEAD,
+    ),
+) -> ExtractionResult:
+    """Run AI chronology extraction on a previously uploaded document.
+
+    Extracts a timeline of dated events from the document with evidence
+    references back to source chunks.
+
+    chunk_selection controls how chunks are chosen for the LLM context budget
+    (same options as /summarise).
+    """
+    doc = _documents.get(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.chunks:
+        raise HTTPException(status_code=422, detail="Document has no chunks")
+
+    from ai_core import extract_chronology
+
+    result = extract_chronology(
+        doc,
+        max_chunks=max_chunks,
+        chunk_selection=chunk_selection,
+    )
+    _extractions[result.id] = result
+    reviewable = _ensure_reviewable(result.id)
+
+    sm = result.summarisation_meta
+    logger.info(
+        "document.chronology_extracted",
+        doc_id=document_id,
+        model=result.model_used,
+        time_ms=result.processing_time_ms,
+        events=len(result.chronology.events) if result.chronology else 0,
+        selection_strategy=sm.selection_strategy.value if sm else None,
+        chunks_sent=sm.chunks_sent_to_llm if sm else None,
+        review_status=reviewable.status.value,
+    )
+    return result
+
+
 @router.get("/{document_id}/extractions/{extraction_id}")
 async def get_extraction(document_id: str, extraction_id: str) -> ExtractionResult:
     result = _extractions.get(extraction_id)

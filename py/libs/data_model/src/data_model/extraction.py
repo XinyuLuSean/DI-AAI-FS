@@ -34,14 +34,13 @@ class ExtractionMethod(StrEnum):
 
 
 class OutputType(StrEnum):
-    """Distinguishes deterministic extraction from AI-generated results.
-
-    This is a first-class distinction so evaluation, HITL, and the UI
+    """Distinguishes result types so evaluation, HITL, and the UI
     can treat them with appropriate trust levels.
     """
 
     DETERMINISTIC = "deterministic"
     AI_SUMMARY = "ai_summary"
+    AI_CHRONOLOGY = "ai_chronology"
 
 
 class ChunkSelectionStrategy(StrEnum):
@@ -112,6 +111,31 @@ class SummaryResult(BaseModel):
     summary_text: str
     key_points: list[str] = Field(default_factory=list)
     grounded_key_points: list[GroundedKeyPoint] = Field(default_factory=list)
+    evidence: list[EvidenceReference] = Field(default_factory=list)
+    grounding_coverage: float = 0.0
+
+
+class ChronologyEvent(BaseModel):
+    """A single dated event extracted from the document.
+
+    Each event traces back to specific chunks for evidence verification.
+    The date_raw field preserves the original text before normalisation,
+    keeping debug/audit paths clear.
+    """
+
+    date_raw: str
+    date_normalised: str = ""
+    description: str
+    chunk_ids: list[str] = Field(default_factory=list)
+    page_numbers: list[int] = Field(default_factory=list)
+    evidence_snippets: list[str] = Field(default_factory=list)
+    grounded: bool = True
+
+
+class ChronologyResult(BaseModel):
+    """A timeline of events extracted from a document with evidence backing."""
+
+    events: list[ChronologyEvent] = Field(default_factory=list)
     evidence: list[EvidenceReference] = Field(default_factory=list)
     grounding_coverage: float = 0.0
 
@@ -196,6 +220,7 @@ class ExtractionResult(BaseModel):
 
     # ── Open-ended narrative ─────────────────────────────────────────
     summary: SummaryResult | None = None
+    chronology: ChronologyResult | None = None
 
     # ── Evidence metadata ────────────────────────────────────────────
     grounding_audit: GroundingAudit | None = None

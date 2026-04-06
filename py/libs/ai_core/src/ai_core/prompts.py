@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 
 class TaskType(StrEnum):
     SUMMARISATION = "summarisation"
+    CHRONOLOGY = "chronology"
     EXTRACTION = "extraction"
     CLASSIFICATION = "classification"
     MATCHING = "matching"
@@ -270,11 +271,100 @@ SUMMARISE_SYSTEM = SUMMARISE_V1.system_prompt
 GROUNDED_SUMMARISE_SYSTEM = GROUNDED_SUMMARISE_V1.system_prompt
 
 
+# ── Chronology extraction ─────────────────────────────────────────────────
+
+CHRONOLOGY_OUTPUT_SCHEMA: dict[str, Any] = {
+    "events": {
+        "type": "array",
+        "items": {
+            "date": {"type": "string", "description": "Date as found in text (raw)"},
+            "date_normalised": {"type": "string", "description": "ISO-8601 normalised date (YYYY-MM-DD) when possible"},
+            "description": {"type": "string", "description": "What happened on this date"},
+            "chunk_ids": {"type": "array", "items": "string"},
+        },
+        "required": True,
+    },
+    "chunk_ids_used": {
+        "type": "array",
+        "items": "string",
+        "description": "Union of all chunk_ids referenced across all events",
+        "required": True,
+    },
+}
+
+_CHRONOLOGY_SYSTEM_TEXT = """\
+You are a document analysis assistant specialising in timeline extraction.
+You receive text chunks from a document and produce a structured JSON timeline
+of events found in the text.
+
+Return ONLY valid JSON with this exact schema:
+{
+  "events": [
+    {
+      "date": "the date as written in the text",
+      "date_normalised": "YYYY-MM-DD format if possible, otherwise empty string",
+      "description": "A concise description of what happened",
+      "chunk_ids": ["id1"]
+    }
+  ],
+  "chunk_ids_used": ["id1", "id2"]
+}
+
+Rules:
+- Extract ALL date-referenced events from the provided chunks.
+- Events should be in chronological order when possible.
+- date is the literal text from the document (e.g. "August 15, 2024", "3 days later").
+- date_normalised should be ISO-8601 (YYYY-MM-DD) when a concrete date can be determined.
+  Leave as empty string for relative dates that cannot be resolved.
+- Each event MUST cite the chunk_ids where the date/event was found.
+- chunk_ids_used MUST be the union of all chunk_ids across all events.
+- Do NOT invent events or dates not present in the text.
+- Do NOT cite chunk IDs that were not provided.
+- If no dates or events are found, return {"events": [], "chunk_ids_used": []}.
+- Keep descriptions factual and concise (1-2 sentences max).
+- If a date is ambiguous, note the ambiguity in the description.\
+"""
+
+CHRONOLOGY_V1 = PromptTemplate(
+    name="chronology",
+    version="1.0",
+    task_type=TaskType.CHRONOLOGY,
+    description=(
+        "Timeline extraction from document chunks.  Produces a chronologically "
+        "ordered list of dated events with evidence references back to source chunks."
+    ),
+    system_prompt=_CHRONOLOGY_SYSTEM_TEXT,
+    expected_output_schema=CHRONOLOGY_OUTPUT_SCHEMA,
+    model_assumptions=[
+        "gpt-4o-mini (primary, tested)",
+        "gpt-4o (supported, higher quality)",
+        "Any LiteLLM-compatible model with JSON-mode support",
+    ],
+    evidence_requirements=[
+        "Every event MUST cite the chunk_ids where it was found",
+        "chunk_ids_used MUST be the union of all cited chunk_ids",
+        "Only chunks actually provided in the context may be cited",
+    ],
+    uncertainty_instructions=[
+        "If a date is ambiguous, note ambiguity in the description",
+        "If date_normalised cannot be determined, leave as empty string",
+        "Prefer omitting an event over fabricating a date",
+    ],
+    guardrails=[
+        "Do NOT invent events or dates not present in the text",
+        "Do NOT cite chunk IDs that were not provided",
+        "Do NOT speculate about events outside the provided chunks",
+        "Do NOT merge distinct events into one",
+    ],
+)
+
+
 # ── Prompt registry ──────────────────────────────────────────────────────
 
 _REGISTRY: dict[tuple[str, str], PromptTemplate] = {
     (SUMMARISE_V1.name, SUMMARISE_V1.version): SUMMARISE_V1,
     (GROUNDED_SUMMARISE_V1.name, GROUNDED_SUMMARISE_V1.version): GROUNDED_SUMMARISE_V1,
+    (CHRONOLOGY_V1.name, CHRONOLOGY_V1.version): CHRONOLOGY_V1,
 }
 
 
@@ -324,3 +414,13 @@ def build_summarise_user_prompt(
     sections.append("DOCUMENT CHUNKS:\n" + "\n---\n".join(chunk_parts))
 
     return "\n\n".join(sections)
+
+
+def build_chronology_user_prompt(
+    chunks: list[dict[str, str]],
+) -> str:
+    """Format chunks into the user prompt for chronology extraction."""
+    chunk_parts: list[str] = []
+    for c in chunks:
+        chunk_parts.append(f"[chunk_id={c['chunk_id']}]\n{c['text']}\n")
+    return "DOCUMENT CHUNKS:\n" + "\n---\n".join(chunk_parts)

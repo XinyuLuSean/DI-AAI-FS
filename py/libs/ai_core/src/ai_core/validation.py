@@ -10,14 +10,14 @@ Failure taxonomy:
   WRONG_STRUCTURE   — JSON parsed but top-level shape is wrong (array, string, etc.)
   INVALID_JSON      — LLM returned non-JSON content (caught earlier by adapter)
 
-The validate_summarisation_output function returns a ValidationResult that
-carries the cleaned output, a list of issues found, and the overall status.
-The summariser uses this to decide whether to proceed, warn, or fail.
+Each AI task has its own validate_*_output function that returns a generic
+ValidationResult carrying the task-specific cleaned output.
 """
 
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -42,10 +42,17 @@ class ValidationIssue(BaseModel):
 
 
 class ValidationResult(BaseModel):
-    """Outcome of validating one LLM output."""
+    """Outcome of validating one LLM output.
+
+    output is typed as Any so the same result type works for every task.
+    The calling task knows the concrete type (LLMSummarisationOutput,
+    LLMChronologyOutput, etc).
+    """
+    model_config = {"arbitrary_types_allowed": True}
+
     status: ValidationStatus
     issues: list[ValidationIssue] = Field(default_factory=list)
-    output: LLMSummarisationOutput | None = None
+    output: Any = None
 
     @property
     def ok(self) -> bool:
@@ -247,6 +254,147 @@ def validate_summarisation_output(raw: dict) -> ValidationResult:
             ))
 
     # ── Determine overall status ─────────────────────────────────────
+    if has_error:
+        status = ValidationStatus.MISSING_REQUIRED
+    elif len(issues) > 0:
+        status = ValidationStatus.PARTIAL_RECOVERY
+    else:
+        status = ValidationStatus.VALID
+
+    return ValidationResult(
+        status=status,
+        issues=issues,
+        output=output,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Chronology task validation
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class LLMChronologyEvent(BaseModel):
+    """A single event as the LLM should return it."""
+
+    date: str = ""
+    date_normalised: str = ""
+    description: str = ""
+    chunk_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("date", mode="before")
+    @classmethod
+    def coerce_date(cls, v: object) -> str:
+        return str(v) if v is not None else ""
+
+    @field_validator("chunk_ids", mode="before")
+    @classmethod
+    def coerce_chunk_ids(cls, v: object) -> list[str]:
+        if isinstance(v, list):
+            return [str(x) for x in v]
+        return []
+
+
+class LLMChronologyOutput(BaseModel):
+    """The full JSON structure we expect from the chronology LLM call."""
+
+    events: list[LLMChronologyEvent] = Field(default_factory=list)
+    chunk_ids_used: list[str] = Field(default_factory=list)
+
+    @field_validator("events", mode="before")
+    @classmethod
+    def coerce_events(cls, v: object) -> list[dict]:
+        if not isinstance(v, list):
+            return []
+        result = []
+        for item in v:
+            if isinstance(item, dict):
+                result.append(item)
+        return result
+
+    @field_validator("chunk_ids_used", mode="before")
+    @classmethod
+    def coerce_chunk_ids_used(cls, v: object) -> list[str]:
+        if isinstance(v, list):
+            return [str(x) for x in v]
+        return []
+
+
+def validate_chronology_output(raw: dict) -> ValidationResult:
+    """Validate raw LLM JSON against the chronology schema.
+
+    Same philosophy as validate_summarisation_output: strict parse,
+    semantic checks, controlled recovery.
+    """
+    issues: list[ValidationIssue] = []
+
+    if not isinstance(raw, dict):
+        return ValidationResult(
+            status=ValidationStatus.WRONG_STRUCTURE,
+            issues=[ValidationIssue(
+                field="<root>",
+                issue=f"Expected a JSON object, got {type(raw).__name__}",
+                severity="error",
+            )],
+        )
+
+    try:
+        output = LLMChronologyOutput.model_validate(raw)
+    except Exception as exc:
+        return ValidationResult(
+            status=ValidationStatus.WRONG_STRUCTURE,
+            issues=[ValidationIssue(
+                field="<root>",
+                issue=f"Pydantic validation failed: {exc}",
+                severity="error",
+            )],
+        )
+
+    has_error = False
+
+    # ── events ────────────────────────────────────────────────────────
+    empty_events = [e for e in output.events if not e.description.strip()]
+    if empty_events:
+        output.events = [e for e in output.events if e.description.strip()]
+        issues.append(ValidationIssue(
+            field="events",
+            issue=f"{len(empty_events)} event(s) had empty description — removed",
+            severity="warning",
+            recovered=True,
+            recovery_note="Filtered out events with no description",
+        ))
+
+    dateless_events = [e for e in output.events if not e.date.strip()]
+    if dateless_events:
+        issues.append(ValidationIssue(
+            field="events",
+            issue=f"{len(dateless_events)}/{len(output.events)} event(s) have no date",
+            severity="warning",
+        ))
+
+    uncited_events = [e for e in output.events if len(e.chunk_ids) == 0]
+    if uncited_events:
+        issues.append(ValidationIssue(
+            field="events",
+            issue=f"{len(uncited_events)}/{len(output.events)} event(s) have no chunk_ids",
+            severity="warning",
+        ))
+
+    # ── chunk_ids_used ────────────────────────────────────────────────
+    if len(output.chunk_ids_used) == 0 and len(output.events) > 0:
+        all_cited: list[str] = []
+        for ev in output.events:
+            all_cited.extend(ev.chunk_ids)
+        if all_cited:
+            output.chunk_ids_used = list(dict.fromkeys(all_cited))
+            issues.append(ValidationIssue(
+                field="chunk_ids_used",
+                issue="Missing — reconstructed from events chunk_ids",
+                severity="warning",
+                recovered=True,
+                recovery_note=f"Rebuilt from {len(output.chunk_ids_used)} unique chunk IDs",
+            ))
+
+    # ── Determine overall status ──────────────────────────────────────
     if has_error:
         status = ValidationStatus.MISSING_REQUIRED
     elif len(issues) > 0:

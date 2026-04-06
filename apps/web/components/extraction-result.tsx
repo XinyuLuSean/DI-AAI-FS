@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type {
+  ChronologyEvent,
   EvidenceGapAnalysis,
   ExtractionResponse,
   EvidenceReference,
@@ -23,10 +24,16 @@ export function ExtractionResult({ result }: Props) {
           className={`rounded-full px-2.5 py-0.5 font-medium ${
             result.output_type === "deterministic"
               ? "bg-gray-100 text-gray-700"
-              : "bg-purple-100 text-purple-700"
+              : result.output_type === "ai_chronology"
+                ? "bg-indigo-100 text-indigo-700"
+                : "bg-purple-100 text-purple-700"
           }`}
         >
-          {result.output_type === "deterministic" ? "Deterministic" : "AI Summary"}
+          {result.output_type === "deterministic"
+            ? "Deterministic"
+            : result.output_type === "ai_chronology"
+              ? "AI Chronology"
+              : "AI Summary"}
         </span>
         <span>Model: {result.model_used}</span>
         {result.prompt_name && (
@@ -136,6 +143,11 @@ export function ExtractionResult({ result }: Props) {
             <EvidencePanel evidence={result.summary.evidence} />
           )}
         </div>
+      )}
+
+      {/* Chronology timeline (Phase 4) */}
+      {result.chronology && result.chronology.events.length > 0 && (
+        <ChronologyPanel events={result.chronology.events} coverage={result.chronology.grounding_coverage} />
       )}
 
       {/* Structured fields */}
@@ -427,6 +439,100 @@ function EvidenceGapPanel({ gap }: { gap: EvidenceGapAnalysis }) {
       {gap.summary && (
         <p className="mt-2 text-gray-500">{gap.summary}</p>
       )}
+    </div>
+  );
+}
+
+function ChronologyPanel({
+  events,
+  coverage,
+}: {
+  events: ChronologyEvent[];
+  coverage: number;
+}) {
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="mb-4 flex items-center gap-3">
+        <h3 className="text-lg font-semibold">Timeline</h3>
+        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+          {events.length} event{events.length !== 1 ? "s" : ""}
+        </span>
+        {coverage > 0 && (
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              coverage >= 0.8
+                ? "bg-emerald-100 text-emerald-700"
+                : coverage >= 0.5
+                  ? "bg-yellow-100 text-yellow-700"
+                  : "bg-red-100 text-red-700"
+            }`}
+          >
+            {(coverage * 100).toFixed(0)}% grounded
+          </span>
+        )}
+      </div>
+
+      <div className="relative ml-3 border-l-2 border-indigo-200">
+        {events.map((ev, i) => (
+          <div key={i} className="relative mb-4 pl-6">
+            <span
+              className={`absolute -left-[7px] top-1.5 h-3 w-3 rounded-full border-2 border-white ${
+                ev.grounded ? "bg-indigo-500" : "bg-red-400"
+              }`}
+            />
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm font-semibold text-indigo-700">
+                {ev.date_normalised || ev.date_raw || "No date"}
+              </span>
+              {ev.date_normalised && ev.date_raw !== ev.date_normalised && (
+                <span className="text-[10px] text-gray-400">
+                  ({ev.date_raw})
+                </span>
+              )}
+              {ev.page_numbers && ev.page_numbers.length > 0 && (
+                <span className="text-[10px] text-blue-400">
+                  pp. {ev.page_numbers.join(", ")}
+                </span>
+              )}
+              {!ev.grounded && (
+                <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600">
+                  ungrounded
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-sm text-gray-700">{ev.description}</p>
+            {ev.chunk_ids.length > 0 && (
+              <span className="text-[10px] font-mono text-gray-400">
+                [{ev.chunk_ids.join(", ")}]
+              </span>
+            )}
+            {ev.evidence_snippets && ev.evidence_snippets.length > 0 && (
+              <>
+                <button
+                  onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
+                  className="ml-1 text-[10px] text-blue-500 hover:underline"
+                >
+                  {expandedIdx === i ? "hide evidence" : "show evidence"}
+                </button>
+                {expandedIdx === i && (
+                  <div className="mt-1 space-y-1">
+                    {ev.evidence_snippets.map((snippet, j) => (
+                      <div
+                        key={j}
+                        className="rounded border border-indigo-100 bg-indigo-50/50 px-2.5 py-1.5 text-xs text-gray-600"
+                      >
+                        {snippet}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
