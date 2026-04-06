@@ -26,6 +26,7 @@ from py_api.main import app
 
 from di_eval.report import (
     format_deterministic_report,
+    format_retrieval_report,
     format_slice_report,
     format_summary_report,
     format_system_metrics_report,
@@ -104,8 +105,20 @@ class TestSummaryEvaluation:
             pytest.skip("Summary evaluation not run (set EVAL_SUMMARISE=1)")
 
 
+class TestRetrievalAwareEvaluation:
+    """Module 9C — retrieval-aware evaluation."""
+
+    def test_retrieval_report(self, eval_result) -> None:
+        report = format_retrieval_report(eval_result.retrieval_metrics)
+        print(report)
+        assert len(eval_result.retrieval_metrics) > 0
+
+    def test_retrieval_metrics_have_latency(self, eval_result) -> None:
+        assert all(rm.retrieval_latency_ms >= 0 for rm in eval_result.retrieval_metrics.values())
+
+
 class TestSliceBreakdown:
-    """Module 9C — evaluation broken down by document slices."""
+    """Module 9D — evaluation broken down by document slices."""
 
     def test_slice_report(self, eval_result) -> None:
         report = format_slice_report(eval_result.slice_breakdown)
@@ -121,9 +134,14 @@ class TestSliceBreakdown:
             pytest.skip("No slice breakdown")
         assert len(eval_result.slice_breakdown.by_size_category) > 0
 
+    def test_has_runtime_parse_quality_slices(self, eval_result) -> None:
+        if eval_result.slice_breakdown is None:
+            pytest.skip("No slice breakdown")
+        assert len(eval_result.slice_breakdown.by_parse_quality) > 0
+
 
 class TestSystemMetrics:
-    """Module 9D — system-level operational metrics."""
+    """System-level operational metrics."""
 
     def test_system_metrics_report(self, eval_result) -> None:
         report = format_system_metrics_report(eval_result.pipeline_metrics)

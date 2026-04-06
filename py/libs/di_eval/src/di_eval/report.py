@@ -4,12 +4,14 @@ Converts structured evaluation results into human-readable text reports.
 Three report types:
   1. Deterministic metrics report — per-fixture field extraction results
   2. Summary evaluation report — per-fixture summary dimension scores
-  3. Slice breakdown report — aggregated metrics per document slice
+  3. Retrieval-aware report — relevance, grounding, latency, token efficiency
+  4. Slice breakdown report — aggregated metrics per document slice
 """
 
 from __future__ import annotations
 
 from di_eval.field_eval import FieldSetMetrics
+from di_eval.retrieval_eval import RetrievalMetrics
 from di_eval.slice_eval import SliceBreakdown, SliceStats
 from di_eval.summary_eval import SummaryDimensions
 from di_eval.system_metrics import PipelineMetrics
@@ -113,6 +115,40 @@ def format_summary_report(summary_dims: dict[str, SummaryDimensions]) -> str:
     return "\n".join(lines)
 
 
+def format_retrieval_report(retrieval_metrics: dict[str, RetrievalMetrics]) -> str:
+    """Produce a retrieval-aware evaluation report."""
+    lines: list[str] = []
+    lines.append("")
+    lines.append("╔══════════════════════════════════════════════════════════════════════╗")
+    lines.append("║            RETRIEVAL-AWARE EVALUATION REPORT                        ║")
+    lines.append("╚══════════════════════════════════════════════════════════════════════╝")
+    lines.append("")
+
+    if not retrieval_metrics:
+        lines.append("  (No retrieval-aware evaluation results available)")
+        return "\n".join(lines)
+
+    for fixture, rm in sorted(retrieval_metrics.items()):
+        lines.append(f"  [{fixture}]")
+        lines.append(f"    Query:              {rm.query[:72]}")
+        lines.append(f"    Head avg relevance: {rm.head_avg_relevance:.3f}")
+        lines.append(f"    Ranked relevance:   {rm.query_ranked_avg_relevance:.3f}")
+        lines.append(f"    Relevance lift:     {rm.relevance_lift:+.3f}")
+        lines.append(f"    Overlap:            {rm.selected_overlap:.1%}")
+        lines.append(f"    Retrieval latency:  {rm.retrieval_latency_ms}ms")
+        lines.append(f"    Token efficiency:   {rm.token_efficiency:.1%}")
+        lines.append(f"    Evidence usefulness:{rm.evidence_usefulness:.1%}")
+        lines.append(f"    Answer grounding:   {rm.answer_grounding:.1%}")
+        if rm.notes:
+            lines.append("    Notes:")
+            for note in rm.notes:
+                lines.append(f"      - {note[:120]}")
+        lines.append("")
+        lines.append(SEPARATOR)
+
+    return "\n".join(lines)
+
+
 def format_slice_report(breakdown: SliceBreakdown | None) -> str:
     """Produce a slice-based evaluation breakdown report."""
     lines: list[str] = []
@@ -129,6 +165,14 @@ def format_slice_report(breakdown: SliceBreakdown | None) -> str:
         ("By Document Type", breakdown.by_document_type),
         ("By Size Category", breakdown.by_size_category),
         ("By File Format", breakdown.by_file_format),
+        ("By Extraction Density", breakdown.by_extraction_density),
+        ("By Section Richness", breakdown.by_section_richness),
+        ("By Content Style", breakdown.by_content_style),
+        ("By Parse Quality", breakdown.by_parse_quality),
+        ("By Page Count Bucket", breakdown.by_page_count_bucket),
+        ("By Text Cleanliness", breakdown.by_text_cleanliness),
+        ("By Task Type", breakdown.by_task_type),
+        ("By Model Prompt", breakdown.by_model_prompt),
     ]:
         lines.append("")
         lines.append(f"  {label}")
@@ -138,17 +182,27 @@ def format_slice_report(breakdown: SliceBreakdown | None) -> str:
             lines.append("    (no data)")
             continue
 
-        lines.append(f"    {'Slice':<16} {'N':>3}  {'P':>6}  {'R':>6}  {'F1':>6}  "
-                      f"{'Cov':>6}  {'Gnd':>6}  {'Ext ms':>7}")
+        lines.append(f"    {'Slice':<22} {'N':>3}  {'P':>6}  {'R':>6}  {'F1':>6}  "
+                      f"{'Cov':>6}  {'Gnd':>6}  {'Ret':>6}  {'Lift':>6}")
         lines.append(f"    {'─' * 62}")
 
         for s in sorted(stats_list, key=lambda x: x.slice_value):
             lines.append(
-                f"    {s.slice_value:<16} {s.fixture_count:>3}  "
+                f"    {s.slice_value[:22]:<22} {s.fixture_count:>3}  "
                 f"{s.avg_precision:>6.3f}  {s.avg_recall:>6.3f}  {s.avg_f1:>6.3f}  "
                 f"{s.avg_factual_coverage:>6.3f}  {s.avg_grounding_score:>6.3f}  "
-                f"{s.avg_extraction_time_ms:>7.0f}"
+                f"{s.avg_retrieval_relevance:>6.3f}  {s.avg_retrieval_lift:>6.3f}"
             )
+
+    for slice_name, stats_list in sorted(breakdown.other_slices.items()):
+        lines.append("")
+        lines.append(f"  {slice_name}")
+        lines.append(f"  {'─' * 60}")
+        if not stats_list:
+            lines.append("    (no data)")
+            continue
+        for s in sorted(stats_list, key=lambda x: x.slice_value):
+            lines.append(f"    {s.slice_value}: n={s.fixture_count} f1={s.avg_f1:.3f}")
 
     lines.append("")
     return "\n".join(lines)

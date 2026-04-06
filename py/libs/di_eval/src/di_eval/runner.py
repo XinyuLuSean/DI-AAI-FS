@@ -18,6 +18,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from di_eval.field_eval import FieldSetMetrics, score_field_set
+from di_eval.retrieval_eval import RetrievalMetrics, score_retrieval
 from di_eval.slice_eval import SliceBreakdown, compute_slice_breakdown
 from di_eval.summary_eval import SummaryDimensions, score_summary
 from di_eval.system_metrics import (
@@ -46,6 +47,7 @@ class EvalResult:
 
     field_metrics: dict[str, FieldSetMetrics] = field(default_factory=dict)
     summary_dims: dict[str, SummaryDimensions] = field(default_factory=dict)
+    retrieval_metrics: dict[str, RetrievalMetrics] = field(default_factory=dict)
     pipeline_metrics: PipelineMetrics | None = None
     slice_breakdown: SliceBreakdown | None = None
 
@@ -70,6 +72,8 @@ class EvalRunner:
         routing_results: dict[str, dict] = {}
         expected_routings: dict[str, dict] = {}
         extraction_results: dict[str, dict] = {}
+        document_results: dict[str, dict] = {}
+        summary_results: dict[str, dict] = {}
         failures: list[str] = []
 
         for fixture_name, fixture_gt in fixtures.items():
@@ -87,6 +91,7 @@ class EvalRunner:
                 continue
 
             timings.append(timing)
+            document_results[fixture_name] = doc
 
             # ── Routing ──────────────────────────────────────────────
             if doc.get("routing"):
@@ -109,6 +114,7 @@ class EvalRunner:
 
             # ── Summary evaluation (9B) ──────────────────────────────
             if summ and fixture_gt.get("summary_evaluation"):
+                summary_results[fixture_name] = summ
                 key_facts = fixture_gt["summary_evaluation"].get("key_facts", [])
                 full_text = self._collect_summary_text(summ)
                 sd = score_summary(
@@ -120,6 +126,26 @@ class EvalRunner:
                     processing_time_ms=summ.get("processing_time_ms", 0),
                 )
                 result.summary_dims[fixture_name] = sd
+
+            # ── Retrieval-aware evaluation (9C) ─────────────────────
+            if fixture_gt.get("summary_evaluation"):
+                retrieval_query = self._build_retrieval_query(fixture_gt)
+                t0 = time.perf_counter_ns()
+                resp = self.client.post(
+                    f"/documents/{doc['id']}/retrieval-compare",
+                    json={"query": retrieval_query, "max_chunks": self.config.max_summary_chunks},
+                )
+                retrieval_ms = int((time.perf_counter_ns() - t0) / 1_000_000)
+                if resp.status_code == 200:
+                    comparison = resp.json()
+                    rm = score_retrieval(
+                        fixture=fixture_name,
+                        query=retrieval_query,
+                        comparison_report=comparison,
+                        summary_result=summ,
+                        retrieval_latency_ms=retrieval_ms,
+                    )
+                    result.retrieval_metrics[fixture_name] = rm
 
         # ── System metrics (9D) ──────────────────────────────────────
         result.pipeline_metrics = collect_pipeline_metrics(
@@ -134,7 +160,10 @@ class EvalRunner:
         result.slice_breakdown = compute_slice_breakdown(
             field_metrics=result.field_metrics,
             summary_dims=result.summary_dims,
-            evaluation_slices=slices,
+            retrieval_metrics=result.retrieval_metrics,
+            evaluation_slices=self._merge_runtime_slices(
+                slices, document_results, extraction_results, summary_results,
+            ),
         )
 
         return result
@@ -220,3 +249,73 @@ class EvalRunner:
             if isinstance(gkp, dict) and gkp.get("text"):
                 parts.append(gkp["text"])
         return "\n".join(parts)
+
+    @staticmethod
+    def _build_retrieval_query(fixture_gt: dict) -> str:
+        facts = fixture_gt.get("summary_evaluation", {}).get("key_facts", [])
+        if not facts:
+            return fixture_gt.get("description", "document summary")
+        return " ".join(facts[:3])[:300]
+
+    @staticmethod
+    def _merge_runtime_slices(
+        ground_truth_slices: dict[str, dict[str, list[str]]],
+        document_results: dict[str, dict],
+        extraction_results: dict[str, dict],
+        summary_results: dict[str, dict],
+    ) -> dict[str, dict[str, list[str]]]:
+        merged = {name: {k: list(v) for k, v in cat.items()} for name, cat in ground_truth_slices.items()}
+
+        runtime: dict[str, dict[str, list[str]]] = {
+            "by_parse_quality": {},
+            "by_page_count_bucket": {},
+            "by_text_cleanliness": {},
+            "by_task_type": {},
+            "by_model_prompt": {},
+        }
+
+        for fixture, doc in document_results.items():
+            parse_meta = doc.get("parse_meta") or {}
+            parse_quality = parse_meta.get("quality", "unknown")
+            runtime["by_parse_quality"].setdefault(parse_quality, []).append(fixture)
+
+            page_count = parse_meta.get("page_count", len(doc.get("pages", [])))
+            page_bucket = _page_count_bucket(page_count)
+            runtime["by_page_count_bucket"].setdefault(page_bucket, []).append(fixture)
+
+            text_cleanliness = _text_cleanliness_bucket(parse_meta)
+            runtime["by_text_cleanliness"].setdefault(text_cleanliness, []).append(fixture)
+
+            runtime["by_task_type"].setdefault("deterministic_extraction", []).append(fixture)
+
+        for fixture, summ in summary_results.items():
+            runtime["by_task_type"].setdefault("ai_summary", []).append(fixture)
+            model_used = summ.get("model_used", "unknown")
+            prompt_name = summ.get("prompt_name", "unknown")
+            prompt_version = summ.get("prompt_version", "")
+            key = f"{model_used}:{prompt_name}@{prompt_version}".strip("@")
+            runtime["by_model_prompt"].setdefault(key, []).append(fixture)
+
+        for slice_name, categories in runtime.items():
+            if categories:
+                merged[slice_name] = categories
+
+        return merged
+
+
+def _page_count_bucket(page_count: int) -> str:
+    if page_count <= 1:
+        return "single_page"
+    if page_count <= 5:
+        return "short_multi_page"
+    if page_count <= 20:
+        return "medium_multi_page"
+    return "long_document"
+
+
+def _text_cleanliness_bucket(parse_meta: dict) -> str:
+    if parse_meta.get("quality") == "degraded":
+        return "low_text_or_degraded"
+    if parse_meta.get("likely_needs_ocr") or parse_meta.get("likely_scanned"):
+        return "low_text_or_degraded"
+    return "clean_text"
