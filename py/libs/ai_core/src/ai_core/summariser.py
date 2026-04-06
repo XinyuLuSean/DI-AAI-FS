@@ -24,8 +24,10 @@ from data_model import (
     ChunkSelectionStrategy,
     Document,
     DocumentChunk,
+    ExperimentMeta,
     ExtractionResult,
     OutputType,
+    RetrievalConfig,
     StructuredField,
     SummaryResult,
 )
@@ -62,6 +64,7 @@ def summarise_document(
     grounding_fields: list[StructuredField] | None = None,
     prompt_template: PromptTemplate | None = None,
     query: str | None = None,
+    run_label: str = "",
 ) -> ExtractionResult:
     """Run summarisation over a budget-selected subset of chunks.
 
@@ -122,6 +125,24 @@ def summarise_document(
     validation_warnings: list[str] = [
         f"[{issue.field}] {issue.issue}" for issue in vr.issues
     ]
+    experiment_meta = ExperimentMeta(
+        task_type="summarisation",
+        prompt_name=template.name,
+        prompt_version=template.version,
+        model_used=llm.model,
+        retrieval=RetrievalConfig(
+            chunk_selection=chunk_selection,
+            max_chunks=max_chunks,
+            query=query or "",
+        ),
+        output_valid=vr.ok,
+        validation_status=vr.status.value,
+        run_label=run_label,
+        notes=[
+            f"coverage_level={coverage_report.coverage_level}",
+            f"grounded_fields={'yes' if grounding_fields else 'no'}",
+        ],
+    )
 
     if not vr.ok:
         logger.warning(
@@ -141,6 +162,7 @@ def summarise_document(
             prompt_version=template.version,
             summary=SummaryResult(summary_text=""),
             summarisation_meta=summarisation_meta,
+            experiment_meta=experiment_meta,
             validation_status=vr.status.value,
             validation_warnings=validation_warnings,
             processing_time_ms=elapsed_ms,
@@ -224,6 +246,7 @@ def summarise_document(
         summarisation_meta=summarisation_meta,
         evidence_gap=evidence_gap.model_dump(),
         coverage_report=coverage_report.model_dump(),
+        experiment_meta=experiment_meta,
         validation_status=vr.status.value,
         validation_warnings=validation_warnings,
         processing_time_ms=elapsed_ms,

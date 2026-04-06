@@ -68,6 +68,11 @@ class PromptTemplate(BaseModel):
         default_factory=list,
         description="Models/providers this prompt was designed and tested for",
     )
+    recommended_model: str = ""
+    notes: list[str] = Field(
+        default_factory=list,
+        description="Short engineering notes about known tradeoffs or intended use",
+    )
 
     # ── Explicit prompt goals (Module 1C) ─────────────────────────────
     evidence_requirements: list[str] = Field(
@@ -152,6 +157,39 @@ Rules:
 - Do NOT speculate about content that might exist outside the provided chunks.\
 """
 
+_SUMMARISE_SYSTEM_TEXT_V1_1 = """\
+You are a document analysis assistant.
+You receive text chunks from a document and produce a structured JSON summary.
+
+Return ONLY valid JSON with this exact schema:
+{
+  "summary_text": "A concise 2-4 sentence summary of the document.",
+  "key_points": [
+    {"point": "A factual statement supported by the text.", "chunk_ids": ["id1", "id2"]},
+    {"point": "Another factual statement.", "chunk_ids": ["id3"]}
+  ],
+  "structured_fields": [
+    {
+      "field_name": "document_type",
+      "field_value": "the detected document type",
+      "confidence": 0.0-1.0
+    }
+  ],
+  "chunk_ids_used": ["id1", "id2", "id3"]
+}
+
+Rules:
+- Prefer the most decision-useful facts first: document purpose, parties, dates, amounts, diagnoses, actions.
+- Keep summary_text concise and evidence-backed. Do not narrate beyond the provided chunks.
+- Every key_point MUST be a document fact, not a stylistic rewrite.
+- For each key_point, cite the specific chunk_ids that support it.
+- chunk_ids_used is the union of all chunk_ids referenced across all key_points.
+- If evidence is partial, explicitly qualify the point rather than overstating certainty.
+- If the document type is unclear, set confidence below 0.5.
+- Do NOT make claims unsupported by the provided chunks.
+- Do NOT invent information or speculate about unseen content.\
+"""
+
 _GROUNDED_SUMMARISE_SYSTEM_TEXT = """\
 You are a document analysis assistant.
 You receive text chunks from a document along with fields that have already been
@@ -190,6 +228,43 @@ Rules:
 - Do NOT speculate about content that might exist outside the provided chunks.\
 """
 
+_GROUNDED_SUMMARISE_SYSTEM_TEXT_V1_1 = """\
+You are a document analysis assistant.
+You receive text chunks from a document along with fields that have already been
+deterministically extracted with high confidence.
+
+IMPORTANT: The pre-extracted fields below are ground truth. Your summary MUST
+stay consistent with them. Use them to anchor dates, names, and amounts instead
+of re-guessing those values.
+
+Return ONLY valid JSON with this exact schema:
+{
+  "summary_text": "A concise 2-4 sentence summary of the document.",
+  "key_points": [
+    {"point": "A factual statement supported by the text.", "chunk_ids": ["id1", "id2"]},
+    {"point": "Another factual statement.", "chunk_ids": ["id3"]}
+  ],
+  "structured_fields": [
+    {
+      "field_name": "document_type",
+      "field_value": "the detected document type",
+      "confidence": 0.0-1.0
+    }
+  ],
+  "chunk_ids_used": ["id1", "id2", "id3"]
+}
+
+Rules:
+- Start from the pre-extracted fields and only add claims supported by the provided chunks.
+- Prioritise decision-useful facts first: who, what, when, amount, diagnosis, action requested.
+- For each key_point, list the specific chunk_ids that support that point.
+- chunk_ids_used is the union of all chunk_ids referenced across all key_points.
+- If evidence is weak or incomplete, say so explicitly in the key_point text.
+- Do NOT contradict or alter the pre-extracted fields.
+- Do NOT invent information that is not present in the provided chunks.
+- Do NOT speculate about content outside the provided chunks.\
+"""
+
 
 # ── Registered prompt templates ───────────────────────────────────────────
 
@@ -209,6 +284,7 @@ SUMMARISE_V1 = PromptTemplate(
         "gpt-4o (supported, higher quality)",
         "Any LiteLLM-compatible model with JSON-mode support",
     ],
+    recommended_model="gpt-4o-mini",
     evidence_requirements=[
         "Every key_point MUST cite the chunk_ids that support it",
         "chunk_ids_used MUST be the union of all cited chunk_ids",
@@ -224,6 +300,10 @@ SUMMARISE_V1 = PromptTemplate(
         "Do NOT invent content not present in the provided text",
         "Do NOT speculate about content outside the provided chunks",
         "Do NOT cite chunk IDs that were not provided",
+    ],
+    notes=[
+        "Baseline summarisation prompt used for Phase 1-9.",
+        "Balanced for concise summaries and schema compliance.",
     ],
 )
 
@@ -243,6 +323,7 @@ GROUNDED_SUMMARISE_V1 = PromptTemplate(
         "gpt-4o (supported, higher quality)",
         "Any LiteLLM-compatible model with JSON-mode support",
     ],
+    recommended_model="gpt-4o-mini",
     evidence_requirements=[
         "Every key_point MUST cite the chunk_ids that support it",
         "chunk_ids_used MUST be the union of all cited chunk_ids",
@@ -261,6 +342,53 @@ GROUNDED_SUMMARISE_V1 = PromptTemplate(
         "Do NOT invent content not present in the provided text",
         "Do NOT speculate about content outside the provided chunks",
         "Do NOT cite chunk IDs that were not provided",
+    ],
+    notes=[
+        "Grounded baseline prompt for summary consistency.",
+        "Best default when deterministic extraction has already run.",
+    ],
+)
+
+SUMMARISE_V1_1 = PromptTemplate(
+    name="summarise",
+    version="1.1",
+    task_type=TaskType.SUMMARISATION,
+    description=(
+        "Decision-oriented summarisation variant. "
+        "Prioritises the most operationally useful facts first while preserving "
+        "strict evidence citation behavior."
+    ),
+    system_prompt=_SUMMARISE_SYSTEM_TEXT_V1_1,
+    expected_output_schema=SUMMARISATION_OUTPUT_SCHEMA,
+    model_assumptions=SUMMARISE_V1.model_assumptions,
+    recommended_model="gpt-4o-mini",
+    evidence_requirements=list(SUMMARISE_V1.evidence_requirements),
+    uncertainty_instructions=list(SUMMARISE_V1.uncertainty_instructions),
+    guardrails=list(SUMMARISE_V1.guardrails),
+    notes=[
+        "Experiment variant for Phase 10 A/B comparisons.",
+        "Optimised for decision-useful ordering rather than general summary tone.",
+    ],
+)
+
+GROUNDED_SUMMARISE_V1_1 = PromptTemplate(
+    name="grounded_summarise",
+    version="1.1",
+    task_type=TaskType.SUMMARISATION,
+    description=(
+        "Grounded decision-oriented summarisation variant. "
+        "Anchors on deterministic fields and prioritises decision-useful facts."
+    ),
+    system_prompt=_GROUNDED_SUMMARISE_SYSTEM_TEXT_V1_1,
+    expected_output_schema=SUMMARISATION_OUTPUT_SCHEMA,
+    model_assumptions=GROUNDED_SUMMARISE_V1.model_assumptions,
+    recommended_model="gpt-4o-mini",
+    evidence_requirements=list(GROUNDED_SUMMARISE_V1.evidence_requirements),
+    uncertainty_instructions=list(GROUNDED_SUMMARISE_V1.uncertainty_instructions),
+    guardrails=list(GROUNDED_SUMMARISE_V1.guardrails),
+    notes=[
+        "Experiment variant for grounded A/B comparisons.",
+        "Useful when consistency with extracted dates and amounts matters most.",
     ],
 )
 
@@ -340,6 +468,7 @@ CHRONOLOGY_V1 = PromptTemplate(
         "gpt-4o (supported, higher quality)",
         "Any LiteLLM-compatible model with JSON-mode support",
     ],
+    recommended_model="gpt-4o-mini",
     evidence_requirements=[
         "Every event MUST cite the chunk_ids where it was found",
         "chunk_ids_used MUST be the union of all cited chunk_ids",
@@ -356,14 +485,31 @@ CHRONOLOGY_V1 = PromptTemplate(
         "Do NOT speculate about events outside the provided chunks",
         "Do NOT merge distinct events into one",
     ],
+    notes=[
+        "Chronology extraction prompt.",
+        "Optimised for dated event completeness over narrative style.",
+    ],
 )
+
+
+class PromptRegistryEntry(BaseModel):
+    """Compact registry view for prompt inspection and experiment planning."""
+
+    name: str
+    version: str
+    task_type: TaskType
+    recommended_model: str = ""
+    expected_schema_keys: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
 
 
 # ── Prompt registry ──────────────────────────────────────────────────────
 
 _REGISTRY: dict[tuple[str, str], PromptTemplate] = {
     (SUMMARISE_V1.name, SUMMARISE_V1.version): SUMMARISE_V1,
+    (SUMMARISE_V1_1.name, SUMMARISE_V1_1.version): SUMMARISE_V1_1,
     (GROUNDED_SUMMARISE_V1.name, GROUNDED_SUMMARISE_V1.version): GROUNDED_SUMMARISE_V1,
+    (GROUNDED_SUMMARISE_V1_1.name, GROUNDED_SUMMARISE_V1_1.version): GROUNDED_SUMMARISE_V1_1,
     (CHRONOLOGY_V1.name, CHRONOLOGY_V1.version): CHRONOLOGY_V1,
 }
 
@@ -388,6 +534,21 @@ def list_prompts() -> list[PromptTemplate]:
 def register_prompt(template: PromptTemplate) -> None:
     """Register a new prompt template (or overwrite an existing version)."""
     _REGISTRY[(template.name, template.version)] = template
+
+
+def list_prompt_registry() -> list[PromptRegistryEntry]:
+    """Return a compact, experiment-friendly view of the prompt registry."""
+    entries: list[PromptRegistryEntry] = []
+    for template in list_prompts():
+        entries.append(PromptRegistryEntry(
+            name=template.name,
+            version=template.version,
+            task_type=template.task_type,
+            recommended_model=template.recommended_model,
+            expected_schema_keys=list(template.expected_output_schema.keys()),
+            notes=template.notes,
+        ))
+    return sorted(entries, key=lambda entry: (entry.task_type, entry.name, entry.version))
 
 
 # ── User prompt builder ──────────────────────────────────────────────────

@@ -599,6 +599,10 @@ async def summarise(
         default=ChunkSelectionStrategy.HEAD,
     ),
     query: str | None = Query(default=None),
+    prompt_name: str | None = Query(default=None),
+    prompt_version: str = Query(default="1.0"),
+    model: str | None = Query(default=None),
+    run_label: str = Query(default=""),
 ) -> ExtractionResult:
     """Run AI summarisation on a previously uploaded document.
 
@@ -622,6 +626,8 @@ async def summarise(
         raise HTTPException(status_code=422, detail="Document has no chunks")
 
     from ai_core import summarise_document
+    from ai_core.prompts import get_prompt
+    from ai_core.adapter import LLMAdapter
 
     grounding_fields = None
     if extraction_id:
@@ -635,12 +641,21 @@ async def summarise(
                 grounding_fields=len(grounding_fields),
             )
 
+    prompt_template = None
+    if prompt_name:
+        prompt_template = get_prompt(prompt_name, prompt_version)
+
+    llm = LLMAdapter(model=model) if model else None
+
     result = summarise_document(
         doc,
+        llm=llm,
         max_chunks=max_chunks,
         chunk_selection=chunk_selection,
         grounding_fields=grounding_fields,
+        prompt_template=prompt_template,
         query=query,
+        run_label=run_label,
     )
     _extractions[result.id] = result
     reviewable = _ensure_reviewable(result.id)
@@ -652,6 +667,8 @@ async def summarise(
         model=result.model_used,
         time_ms=result.processing_time_ms,
         grounded=grounding_fields is not None,
+        prompt_name=result.prompt_name,
+        prompt_version=result.prompt_version,
         selection_strategy=sm.selection_strategy.value if sm else None,
         chunks_sent=sm.chunks_sent_to_llm if sm else None,
         total_available=sm.total_chunks_available if sm else None,

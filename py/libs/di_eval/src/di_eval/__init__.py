@@ -1,3 +1,9 @@
+from di_eval.experiment import (
+    ExperimentComparison,
+    ExperimentRow,
+    ExperimentVariant,
+    run_summary_experiment,
+)
 from di_eval.field_eval import (
     FieldMatchResult,
     FieldSetMetrics,
@@ -6,6 +12,7 @@ from di_eval.field_eval import (
 )
 from di_eval.report import (
     format_deterministic_report,
+    format_experiment_report,
     format_retrieval_report,
     format_slice_report,
     format_summary_report,
@@ -19,6 +26,9 @@ from di_eval.system_metrics import PipelineMetrics, collect_pipeline_metrics
 __all__ = [
     "EvalConfig",
     "EvalRunner",
+    "ExperimentComparison",
+    "ExperimentRow",
+    "ExperimentVariant",
     "FieldMatchResult",
     "FieldSetMetrics",
     "PipelineMetrics",
@@ -28,9 +38,11 @@ __all__ = [
     "collect_pipeline_metrics",
     "compute_slice_breakdown",
     "format_deterministic_report",
+    "format_experiment_report",
     "format_retrieval_report",
     "format_slice_report",
     "format_summary_report",
+    "run_summary_experiment",
     "score_field",
     "score_field_set",
     "score_retrieval",

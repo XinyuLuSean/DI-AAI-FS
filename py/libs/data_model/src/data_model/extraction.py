@@ -221,6 +221,28 @@ class SemanticMatchResult(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class RetrievalConfig(BaseModel):
+    """Retrieval/context configuration used by an AI task run."""
+
+    chunk_selection: ChunkSelectionStrategy = ChunkSelectionStrategy.HEAD
+    max_chunks: int = 0
+    query: str = ""
+
+
+class ExperimentMeta(BaseModel):
+    """Experiment-tracking metadata attached to one AI output."""
+
+    task_type: str = ""
+    prompt_name: str = ""
+    prompt_version: str = ""
+    model_used: str = ""
+    retrieval: RetrievalConfig | None = None
+    output_valid: bool = True
+    validation_status: str = "valid"
+    run_label: str = ""
+    notes: list[str] = Field(default_factory=list)
+
+
 class SummarisationMeta(BaseModel):
     """Tracks what the LLM actually saw vs what was available.
 
@@ -290,6 +312,7 @@ class ExtractionResult(BaseModel):
     summarisation_meta: SummarisationMeta | None = None
     evidence_gap: dict | None = None
     coverage_report: dict | None = None
+    experiment_meta: ExperimentMeta | None = None
 
     # ── Warning / review status ──────────────────────────────────────
     validation_status: str = "valid"

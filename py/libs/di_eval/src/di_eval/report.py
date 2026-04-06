@@ -11,6 +11,7 @@ Three report types:
 from __future__ import annotations
 
 from di_eval.field_eval import FieldSetMetrics
+from di_eval.experiment import ExperimentComparison
 from di_eval.retrieval_eval import RetrievalMetrics
 from di_eval.slice_eval import SliceBreakdown, SliceStats
 from di_eval.summary_eval import SummaryDimensions
@@ -146,6 +147,42 @@ def format_retrieval_report(retrieval_metrics: dict[str, RetrievalMetrics]) -> s
         lines.append("")
         lines.append(SEPARATOR)
 
+    return "\n".join(lines)
+
+
+def format_experiment_report(comparison: ExperimentComparison) -> str:
+    """Produce a side-by-side prompt/model/retrieval comparison report."""
+    lines: list[str] = []
+    lines.append("")
+    lines.append("╔══════════════════════════════════════════════════════════════════════╗")
+    lines.append("║             PROMPT EXPERIMENT COMPARISON REPORT                     ║")
+    lines.append("╚══════════════════════════════════════════════════════════════════════╝")
+    lines.append("")
+
+    if not comparison.rows:
+        lines.append("  (No experiment rows available)")
+        return "\n".join(lines)
+
+    lines.append(
+        f"  Best coverage: {comparison.best_factual_coverage} | "
+        f"Best grounding: {comparison.best_grounding} | "
+        f"Fastest: {comparison.fastest_variant}"
+    )
+    lines.append(f"  Recommendation: {comparison.recommendation}")
+    lines.append("")
+    lines.append(
+        f"  {'Label':<18} {'Prompt':<24} {'Model':<12} {'Ret':<12} "
+        f"{'Cov':>5} {'Gnd':>5} {'Evd':>5} {'Act':>5} {'ms':>5}"
+    )
+    lines.append(f"  {'─' * 68}")
+    for row in comparison.rows:
+        lines.append(
+            f"  {row.label[:18]:<18} {row.prompt_ref[:24]:<24} {row.model[:12]:<12} "
+            f"{row.chunk_selection[:12]:<12} {row.factual_coverage:>5.2f} "
+            f"{row.grounding_score:>5.2f} {row.evidence_support:>5.2f} "
+            f"{row.actionability:>5.2f} {row.processing_time_ms:>5}"
+        )
+    lines.append("")
     return "\n".join(lines)
 
 
