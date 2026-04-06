@@ -387,7 +387,29 @@ export type ReviewTriggerReason =
   | "low_routing_confidence"
   | "safe_failure"
   | "deterministic_contradiction"
+  | "critical_document_type"
+  | "unusual_extracted_value"
   | "manual_request";
+
+export type FeedbackFailureSource =
+  | "deterministic_extraction"
+  | "prompt"
+  | "retrieval"
+  | "parse_quality"
+  | "schema"
+  | "chunking"
+  | "grounding"
+  | "routing"
+  | "unknown";
+
+export type FeedbackFailureType =
+  | "wrong_value"
+  | "unsupported_claim"
+  | "missing_evidence"
+  | "wrong_evidence"
+  | "partial_coverage"
+  | "parse_quality"
+  | "other";
 
 export interface ReviewDecision {
   id: string;
@@ -403,8 +425,11 @@ export interface ReviewableOutput {
   id: string;
   extraction_id: string;
   document_id: string;
+  document_type: string;
+  output_type: OutputType | string;
   status: ReviewStatus;
   trigger_reasons: ReviewTriggerReason[];
+  review_hints: string[];
   priority_score: number;
   decisions: ReviewDecision[];
   correction_id: string | null;
@@ -424,6 +449,90 @@ export interface CorrectionResponse {
   total_corrections: number;
   feedback_signals_generated: number;
   review_status: string;
+  correction: CorrectionRecord;
+  feedback_signals: FeedbackSignal[];
+}
+
+export interface FieldCorrectionRecord {
+  field_name: string;
+  original_value: string;
+  corrected_value: string;
+  original_confidence: number;
+  reason: string;
+  failure_type: FeedbackFailureType;
+  failure_source: FeedbackFailureSource;
+  suggested_chunk_id: string;
+  corrected_by: string;
+  created_at: string;
+}
+
+export interface SummaryCorrectionRecord {
+  original_summary_text: string;
+  corrected_summary_text: string;
+  reason: string;
+  failure_type: FeedbackFailureType;
+  failure_source: FeedbackFailureSource;
+  supporting_chunk_ids: string[];
+  corrected_by: string;
+  created_at: string;
+}
+
+export interface EvidenceMismatchRecord {
+  field_name: string;
+  key_point_text: string;
+  chunk_id: string;
+  mismatch_type: string;
+  failure_type: FeedbackFailureType;
+  failure_source: FeedbackFailureSource;
+  suggested_chunk_id: string;
+  suggested_evidence_snippet: string;
+  explanation: string;
+  reported_by: string;
+  created_at: string;
+}
+
+export interface ParseQualityComplaintRecord {
+  reported_quality: string;
+  actual_quality: string;
+  failure_type: FeedbackFailureType;
+  failure_source: FeedbackFailureSource;
+  affected_pages: number[];
+  explanation: string;
+  reported_by: string;
+  created_at: string;
+}
+
+export interface CorrectionRecord {
+  id: string;
+  extraction_id: string;
+  document_id: string;
+  reviewer_id: string;
+  field_corrections: FieldCorrectionRecord[];
+  summary_correction: SummaryCorrectionRecord | null;
+  evidence_mismatches: EvidenceMismatchRecord[];
+  parse_complaints: ParseQualityComplaintRecord[];
+  notes: string;
+  created_at: string;
+}
+
+export type FeedbackCategory =
+  | "extraction_heuristic"
+  | "extraction_prompt"
+  | "summary_prompt"
+  | "routing_heuristic"
+  | "parse_quality_model"
+  | "retrieval_ranking"
+  | "evaluation_fixture"
+  | "fine_tuning_data";
+
+export interface FeedbackSignal {
+  correction_id: string;
+  document_id: string;
+  category: FeedbackCategory;
+  signal_description: string;
+  priority: string;
+  actionable: boolean;
+  created_at: string;
 }
 
 // ── Phase 7: Coverage Report Types ───────────────────────────────────────

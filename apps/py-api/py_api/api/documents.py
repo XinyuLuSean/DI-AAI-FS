@@ -15,6 +15,8 @@ Endpoints:
   GET  /documents/{id}/extractions/{ext_id}             — retrieve extraction result
   POST /documents/{id}/extractions/{ext_id}/review      — submit a review decision (Phase 11)
   POST /documents/{id}/extractions/{ext_id}/correct     — submit corrections (Phase 11)
+  GET  /documents/{id}/extractions/{ext_id}/corrections — list stored corrections for one extraction
+  GET  /documents/{id}/feedback-signals                 — list feedback signals for one document
   GET  /documents/{id}/extractions/{ext_id}/review      — get review status (Phase 11)
 """
 
@@ -92,10 +94,12 @@ def _ensure_reviewable(extraction_id: str) -> ReviewableOutput:
     doc = _documents.get(result.document_id)
     parse_quality = doc.parse_meta.quality if doc and doc.parse_meta else None
     routing_confidence = doc.routing.confidence if doc and doc.routing else None
+    document_type = doc.routing.predicted_type if doc and doc.routing else None
     reviewable = create_reviewable_output(
         result,
         parse_quality=parse_quality,
         routing_confidence=routing_confidence,
+        document_type=document_type,
     )
     _reviewables[extraction_id] = reviewable
     return reviewable
@@ -150,6 +154,15 @@ class SubmitCorrectionRequest(BaseModel):
     evidence_mismatches: list[dict] = Field(default_factory=list)
     parse_complaints: list[dict] = Field(default_factory=list)
     notes: str = ""
+
+
+class CorrectionSubmissionResponse(BaseModel):
+    correction_id: str
+    total_corrections: int
+    feedback_signals_generated: int
+    review_status: str
+    correction: CorrectionRecord
+    feedback_signals: list[FeedbackSignal]
 
 
 class ReviewQueueResponse(BaseModel):
@@ -926,7 +939,7 @@ async def submit_correction(
     document_id: str,
     extraction_id: str,
     body: SubmitCorrectionRequest,
-) -> dict[str, Any]:
+) -> CorrectionSubmissionResponse:
     """Submit corrections for an extraction result.
 
     Creates a CorrectionRecord, generates feedback signals, and
@@ -934,6 +947,8 @@ async def submit_correction(
     """
     from data_model.review import (
         EvidenceMismatchReport,
+        FeedbackFailureSource,
+        FeedbackFailureType,
         FieldCorrection,
         ParseQualityComplaint,
         SummaryCorrection,
@@ -954,6 +969,12 @@ async def submit_correction(
             corrected_value=fc.get("corrected_value", ""),
             original_confidence=original.confidence if original else 0.0,
             reason=fc.get("reason", ""),
+            failure_type=fc.get("failure_type", FeedbackFailureType.WRONG_VALUE),
+            failure_source=fc.get(
+                "failure_source",
+                FeedbackFailureSource.DETERMINISTIC_EXTRACTION,
+            ),
+            suggested_chunk_id=fc.get("suggested_chunk_id", ""),
             corrected_by=body.reviewer_id,
         ))
 
@@ -963,12 +984,40 @@ async def submit_correction(
             original_summary_text=result.summary.summary_text,
             corrected_summary_text=body.summary_correction.get("corrected_summary_text", ""),
             reason=body.summary_correction.get("reason", ""),
+            failure_type=body.summary_correction.get(
+                "failure_type",
+                FeedbackFailureType.UNSUPPORTED_CLAIM,
+            ),
+            failure_source=body.summary_correction.get(
+                "failure_source",
+                FeedbackFailureSource.PROMPT,
+            ),
+            supporting_chunk_ids=body.summary_correction.get("supporting_chunk_ids", []),
             corrected_by=body.reviewer_id,
         )
 
-    evidence_mismatches = [
-        EvidenceMismatchReport(**em) for em in body.evidence_mismatches
-    ]
+    evidence_mismatches = []
+    for em in body.evidence_mismatches:
+        mismatch_type = em.get("mismatch_type", "")
+        evidence_mismatches.append(EvidenceMismatchReport(
+            field_name=em.get("field_name", ""),
+            key_point_text=em.get("key_point_text", ""),
+            chunk_id=em.get("chunk_id", ""),
+            mismatch_type=mismatch_type,
+            failure_type=em.get(
+                "failure_type",
+                FeedbackFailureType.MISSING_EVIDENCE if mismatch_type == "missing" else FeedbackFailureType.WRONG_EVIDENCE,
+            ),
+            failure_source=em.get(
+                "failure_source",
+                FeedbackFailureSource.RETRIEVAL,
+            ),
+            suggested_chunk_id=em.get("suggested_chunk_id", ""),
+            suggested_evidence_snippet=em.get("suggested_evidence_snippet", ""),
+            explanation=em.get("explanation", ""),
+            reported_by=body.reviewer_id,
+        ))
+
     parse_complaints = [
         ParseQualityComplaint(**pc) for pc in body.parse_complaints
     ]
@@ -988,10 +1037,10 @@ async def submit_correction(
     signals = generate_feedback_signals(correction)
     _feedback.extend(signals)
 
-    if extraction_id in _reviewables:
-        reviewable = _reviewables[extraction_id]
-        reviewable.status = ReviewStatus.CORRECTED
-        reviewable.correction_id = correction.id
+    reviewable = _ensure_reviewable(extraction_id)
+    reviewable.status = ReviewStatus.CORRECTED
+    reviewable.correction_id = correction.id
+    reviewable.updated_at = datetime.now(UTC)
 
     logger.info(
         "hitl.correction_submitted",
@@ -1006,9 +1055,46 @@ async def submit_correction(
         reviewer=body.reviewer_id,
     )
 
-    return {
-        "correction_id": correction.id,
-        "total_corrections": correction.total_corrections,
-        "feedback_signals_generated": len(signals),
-        "review_status": _reviewables[extraction_id].status.value if extraction_id in _reviewables else "pending_review",
-    }
+    return CorrectionSubmissionResponse(
+        correction_id=correction.id,
+        total_corrections=correction.total_corrections,
+        feedback_signals_generated=len(signals),
+        review_status=reviewable.status.value,
+        correction=correction,
+        feedback_signals=signals,
+    )
+
+
+@router.get(
+    "/{document_id}/extractions/{extraction_id}/corrections",
+    response_model=list[CorrectionRecord],
+)
+async def list_corrections(
+    document_id: str,
+    extraction_id: str,
+) -> list[CorrectionRecord]:
+    """List stored corrections for one extraction."""
+    result = _extractions.get(extraction_id)
+    if result is None or result.document_id != document_id:
+        raise HTTPException(status_code=404, detail="Extraction not found")
+
+    corrections = [
+        correction for correction in _corrections.values()
+        if correction.document_id == document_id and correction.extraction_id == extraction_id
+    ]
+    return sorted(corrections, key=lambda correction: correction.created_at, reverse=True)
+
+
+@router.get(
+    "/{document_id}/feedback-signals",
+    response_model=list[FeedbackSignal],
+)
+async def list_feedback_signals(document_id: str) -> list[FeedbackSignal]:
+    """List feedback signals derived from corrections for a document."""
+    if document_id not in _documents:
+        raise HTTPException(status_code=404, detail="Document not found")
+    signals = [
+        signal for signal in _feedback
+        if signal.document_id == document_id
+    ]
+    return sorted(signals, key=lambda signal: signal.created_at, reverse=True)

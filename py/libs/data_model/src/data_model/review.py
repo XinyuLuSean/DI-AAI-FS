@@ -60,7 +60,35 @@ class ReviewTriggerReason(StrEnum):
     LOW_ROUTING_CONFIDENCE = "low_routing_confidence"
     SAFE_FAILURE = "safe_failure"
     DETERMINISTIC_CONTRADICTION = "deterministic_contradiction"
+    CRITICAL_DOCUMENT_TYPE = "critical_document_type"
+    UNUSUAL_EXTRACTED_VALUE = "unusual_extracted_value"
     MANUAL_REQUEST = "manual_request"
+
+
+class FeedbackFailureSource(StrEnum):
+    """Likely system area that caused the reviewer-facing issue."""
+
+    DETERMINISTIC_EXTRACTION = "deterministic_extraction"
+    PROMPT = "prompt"
+    RETRIEVAL = "retrieval"
+    PARSE_QUALITY = "parse_quality"
+    SCHEMA = "schema"
+    CHUNKING = "chunking"
+    GROUNDING = "grounding"
+    ROUTING = "routing"
+    UNKNOWN = "unknown"
+
+
+class FeedbackFailureType(StrEnum):
+    """Reviewer-visible failure categories for corrections."""
+
+    WRONG_VALUE = "wrong_value"
+    UNSUPPORTED_CLAIM = "unsupported_claim"
+    MISSING_EVIDENCE = "missing_evidence"
+    WRONG_EVIDENCE = "wrong_evidence"
+    PARTIAL_COVERAGE = "partial_coverage"
+    PARSE_QUALITY = "parse_quality"
+    OTHER = "other"
 
 
 class ReviewDecision(BaseModel):
@@ -93,8 +121,11 @@ class ReviewableOutput(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:12])
     extraction_id: str
     document_id: str
+    document_type: str = ""
+    output_type: str = ""
     status: ReviewStatus = ReviewStatus.PENDING_REVIEW
     trigger_reasons: list[ReviewTriggerReason] = Field(default_factory=list)
+    review_hints: list[str] = Field(default_factory=list)
     priority_score: float = 0.0
     decisions: list[ReviewDecision] = Field(default_factory=list)
     correction_id: str | None = None
@@ -116,6 +147,9 @@ class FieldCorrection(BaseModel):
     corrected_value: str
     original_confidence: float = 0.0
     reason: str = ""
+    failure_type: FeedbackFailureType = FeedbackFailureType.WRONG_VALUE
+    failure_source: FeedbackFailureSource = FeedbackFailureSource.DETERMINISTIC_EXTRACTION
+    suggested_chunk_id: str = ""
     corrected_by: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -131,6 +165,9 @@ class SummaryCorrection(BaseModel):
     original_summary_text: str
     corrected_summary_text: str
     reason: str = ""
+    failure_type: FeedbackFailureType = FeedbackFailureType.UNSUPPORTED_CLAIM
+    failure_source: FeedbackFailureSource = FeedbackFailureSource.PROMPT
+    supporting_chunk_ids: list[str] = Field(default_factory=list)
     corrected_by: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -146,6 +183,10 @@ class EvidenceMismatchReport(BaseModel):
     key_point_text: str = ""
     chunk_id: str = ""
     mismatch_type: str = ""  # "irrelevant", "contradicts", "partial", "fabricated"
+    failure_type: FeedbackFailureType = FeedbackFailureType.WRONG_EVIDENCE
+    failure_source: FeedbackFailureSource = FeedbackFailureSource.RETRIEVAL
+    suggested_chunk_id: str = ""
+    suggested_evidence_snippet: str = ""
     explanation: str = ""
     reported_by: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -160,6 +201,8 @@ class ParseQualityComplaint(BaseModel):
 
     reported_quality: str = ""
     actual_quality: str = ""
+    failure_type: FeedbackFailureType = FeedbackFailureType.PARSE_QUALITY
+    failure_source: FeedbackFailureSource = FeedbackFailureSource.PARSE_QUALITY
     affected_pages: list[int] = Field(default_factory=list)
     explanation: str = ""
     reported_by: str = ""

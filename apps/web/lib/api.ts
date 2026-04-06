@@ -225,6 +225,24 @@ export async function submitCorrection(
       field_name: string;
       corrected_value: string;
       reason: string;
+      failure_source?: string;
+      suggested_chunk_id?: string;
+    }>;
+    summary_correction?: {
+      corrected_summary_text: string;
+      reason: string;
+      failure_source?: string;
+      supporting_chunk_ids?: string[];
+    } | null;
+    evidence_mismatches?: Array<{
+      field_name?: string;
+      key_point_text?: string;
+      chunk_id: string;
+      mismatch_type: string;
+      explanation: string;
+      failure_source?: string;
+      suggested_chunk_id?: string;
+      suggested_evidence_snippet?: string;
     }>;
     notes: string;
   },
@@ -242,4 +260,16 @@ export async function submitCorrection(
     throw new Error(extractErrorMessage(body.detail, `Correction failed (${res.status})`));
   }
   return res.json();
+}
+
+export async function fetchCorrections(documentId: string, extractionId: string) {
+  const res = await fetch(
+    `${API_BASE}/documents/${documentId}/extractions/${extractionId}/corrections`,
+  );
+  return handleResponse(res, "Failed to fetch corrections");
+}
+
+export async function fetchFeedbackSignals(documentId: string) {
+  const res = await fetch(`${API_BASE}/documents/${documentId}/feedback-signals`);
+  return handleResponse(res, "Failed to fetch feedback signals");
 }

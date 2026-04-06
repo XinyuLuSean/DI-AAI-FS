@@ -5,6 +5,7 @@ import { submitCorrection, submitReview } from "@/lib/api";
 import type {
   EvidenceReference,
   ExtractionResponse,
+  FeedbackFailureSource,
   ReviewableOutput,
   StructuredField,
 } from "@/lib/types";
@@ -14,6 +15,29 @@ interface Props {
   extraction: ExtractionResponse | null;
   onReviewSubmitted: () => void;
 }
+
+const FAILURE_SOURCE_OPTIONS: Array<{
+  value: FeedbackFailureSource;
+  label: string;
+}> = [
+  { value: "retrieval", label: "Retrieval" },
+  { value: "prompt", label: "Prompt" },
+  { value: "deterministic_extraction", label: "Deterministic extraction" },
+  { value: "parse_quality", label: "Parse quality" },
+  { value: "schema", label: "Schema" },
+  { value: "chunking", label: "Chunking" },
+  { value: "grounding", label: "Grounding" },
+  { value: "routing", label: "Routing" },
+  { value: "unknown", label: "Unknown" },
+];
+
+const EVIDENCE_MISMATCH_OPTIONS = [
+  { value: "missing", label: "Missing evidence" },
+  { value: "irrelevant", label: "Irrelevant chunk" },
+  { value: "contradicts", label: "Contradicting chunk" },
+  { value: "partial", label: "Partial support" },
+  { value: "fabricated", label: "Fabricated evidence" },
+];
 
 export function ReviewPanel({ reviewable, extraction, onReviewSubmitted }: Props) {
   const [notes, setNotes] = useState("");
@@ -75,6 +99,19 @@ export function ReviewPanel({ reviewable, extraction, onReviewSubmitted }: Props
               >
                 {t.replace(/_/g, " ")}
               </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {reviewable.review_hints.length > 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <h3 className="mb-2 text-sm font-medium text-blue-800">
+            Review Focus
+          </h3>
+          <div className="space-y-1.5 text-xs text-blue-700">
+            {reviewable.review_hints.map((hint) => (
+              <p key={hint}>{hint}</p>
             ))}
           </div>
         </div>
@@ -219,7 +256,7 @@ export function ReviewPanel({ reviewable, extraction, onReviewSubmitted }: Props
               disabled={loading}
               className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
             >
-              {showCorrection ? "Cancel Correction" : "Correct Fields"}
+              {showCorrection ? "Cancel Correction" : "Correct / Flag Issues"}
             </button>
           </div>
 
@@ -227,6 +264,7 @@ export function ReviewPanel({ reviewable, extraction, onReviewSubmitted }: Props
             <CorrectionForm
               reviewable={reviewable}
               fields={extraction.structured_fields}
+              summaryText={extraction.summary?.summary_text ?? ""}
               onSubmitted={() => {
                 setShowCorrection(false);
                 setError(null);
@@ -402,17 +440,30 @@ function EvidenceCard({ evidence: ev }: { evidence: EvidenceReference }) {
 function CorrectionForm({
   reviewable,
   fields,
+  summaryText,
   onSubmitted,
   onError,
 }: {
   reviewable: ReviewableOutput;
   fields: StructuredField[];
+  summaryText: string;
   onSubmitted: () => void;
   onError: (msg: string) => void;
 }) {
   const [corrections, setCorrections] = useState<
     Record<string, { value: string; reason: string }>
   >({});
+  const [failureSource, setFailureSource] = useState<FeedbackFailureSource>("unknown");
+  const [summaryCorrectionText, setSummaryCorrectionText] = useState("");
+  const [summaryCorrectionReason, setSummaryCorrectionReason] = useState("");
+  const [evidenceIssue, setEvidenceIssue] = useState({
+    key_point_text: "",
+    chunk_id: "",
+    mismatch_type: "missing",
+    explanation: "",
+    suggested_chunk_id: "",
+    suggested_evidence_snippet: "",
+  });
   const [correctionNotes, setCorrectionNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -430,10 +481,20 @@ function CorrectionForm({
         field_name: fieldName,
         corrected_value: c.value,
         reason: c.reason || "",
+        failure_source: failureSource,
       }));
 
-    if (fieldCorrections.length === 0) {
-      onError("Enter at least one corrected value");
+    const hasSummaryCorrection = summaryCorrectionText.trim() !== "";
+    const hasEvidenceIssue = [
+      evidenceIssue.key_point_text,
+      evidenceIssue.chunk_id,
+      evidenceIssue.explanation,
+      evidenceIssue.suggested_chunk_id,
+      evidenceIssue.suggested_evidence_snippet,
+    ].some((value) => value.trim() !== "");
+
+    if (fieldCorrections.length === 0 && !hasSummaryCorrection && !hasEvidenceIssue) {
+      onError("Enter a correction, summary fix, or evidence issue");
       return;
     }
 
@@ -442,6 +503,29 @@ function CorrectionForm({
       await submitCorrection(reviewable.document_id, reviewable.extraction_id, {
         reviewer_id: "ui-reviewer",
         field_corrections: fieldCorrections,
+        summary_correction: hasSummaryCorrection
+          ? {
+              corrected_summary_text: summaryCorrectionText,
+              reason: summaryCorrectionReason,
+              failure_source: failureSource,
+              supporting_chunk_ids: evidenceIssue.suggested_chunk_id
+                ? [evidenceIssue.suggested_chunk_id]
+                : [],
+            }
+          : null,
+        evidence_mismatches: hasEvidenceIssue
+          ? [
+              {
+                key_point_text: evidenceIssue.key_point_text,
+                chunk_id: evidenceIssue.chunk_id,
+                mismatch_type: evidenceIssue.mismatch_type,
+                explanation: evidenceIssue.explanation,
+                failure_source: failureSource,
+                suggested_chunk_id: evidenceIssue.suggested_chunk_id,
+                suggested_evidence_snippet: evidenceIssue.suggested_evidence_snippet,
+              },
+            ]
+          : [],
         notes: correctionNotes,
       });
       onSubmitted();
@@ -454,10 +538,27 @@ function CorrectionForm({
 
   return (
     <div className="mt-4 rounded-lg border border-purple-200 bg-purple-50/50 p-5 space-y-4">
-      <h4 className="text-sm font-semibold text-purple-800">Correct Field Values</h4>
+      <h4 className="text-sm font-semibold text-purple-800">Correction Details</h4>
       <p className="text-xs text-purple-600">
-        Enter corrected values for fields that need fixing. Leave blank to skip.
+        Capture the specific fix, likely root cause, and any missing or better evidence.
       </p>
+
+      <div className="rounded-lg border border-purple-100 bg-white p-3">
+        <label className="mb-1 block text-xs font-semibold text-gray-700">
+          Likely root cause
+        </label>
+        <select
+          value={failureSource}
+          onChange={(e) => setFailureSource(e.target.value as FeedbackFailureSource)}
+          className="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 focus:border-purple-300 focus:outline-none"
+        >
+          {FAILURE_SOURCE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="space-y-3">
         {fields.map((field) => (
@@ -489,6 +590,91 @@ function CorrectionForm({
             </div>
           </div>
         ))}
+      </div>
+
+      {summaryText && (
+        <div className="rounded-lg border border-purple-100 bg-white p-4 space-y-3">
+          <div>
+            <h5 className="text-xs font-semibold text-gray-700">Summary correction</h5>
+            <p className="mt-1 text-xs text-gray-500">
+              Use this when the narrative is overconfident, incomplete, or otherwise misleading.
+            </p>
+          </div>
+          <div className="rounded border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+            Current summary: {summaryText}
+          </div>
+          <textarea
+            value={summaryCorrectionText}
+            onChange={(e) => setSummaryCorrectionText(e.target.value)}
+            placeholder="Corrected summary text..."
+            className="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-300 focus:outline-none"
+            rows={3}
+          />
+          <input
+            type="text"
+            value={summaryCorrectionReason}
+            onChange={(e) => setSummaryCorrectionReason(e.target.value)}
+            placeholder="Why was the summary wrong?"
+            className="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-300 focus:outline-none"
+          />
+        </div>
+      )}
+
+      <div className="rounded-lg border border-purple-100 bg-white p-4 space-y-3">
+        <div>
+          <h5 className="text-xs font-semibold text-gray-700">Evidence issue</h5>
+          <p className="mt-1 text-xs text-gray-500">
+            Flag unsupported claims, missing evidence, or a better chunk the model should have used.
+          </p>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          <input
+            type="text"
+            value={evidenceIssue.key_point_text}
+            onChange={(e) => setEvidenceIssue((prev) => ({ ...prev, key_point_text: e.target.value }))}
+            placeholder="Claim or key point text..."
+            className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-300 focus:outline-none"
+          />
+          <input
+            type="text"
+            value={evidenceIssue.chunk_id}
+            onChange={(e) => setEvidenceIssue((prev) => ({ ...prev, chunk_id: e.target.value }))}
+            placeholder="Current chunk id (if any)..."
+            className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-300 focus:outline-none"
+          />
+          <select
+            value={evidenceIssue.mismatch_type}
+            onChange={(e) => setEvidenceIssue((prev) => ({ ...prev, mismatch_type: e.target.value }))}
+            className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 focus:border-purple-300 focus:outline-none"
+          >
+            {EVIDENCE_MISMATCH_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={evidenceIssue.suggested_chunk_id}
+            onChange={(e) => setEvidenceIssue((prev) => ({ ...prev, suggested_chunk_id: e.target.value }))}
+            placeholder="Better chunk id to use..."
+            className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-300 focus:outline-none"
+          />
+        </div>
+        <input
+          type="text"
+          value={evidenceIssue.suggested_evidence_snippet}
+          onChange={(e) => setEvidenceIssue((prev) => ({ ...prev, suggested_evidence_snippet: e.target.value }))}
+          placeholder="Better supporting snippet (optional)..."
+          className="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-300 focus:outline-none"
+        />
+        <textarea
+          value={evidenceIssue.explanation}
+          onChange={(e) => setEvidenceIssue((prev) => ({ ...prev, explanation: e.target.value }))}
+          placeholder="Why is the current evidence wrong or missing?"
+          className="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-purple-300 focus:outline-none"
+          rows={2}
+        />
       </div>
 
       <textarea

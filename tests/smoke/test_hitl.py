@@ -82,6 +82,18 @@ class TestReviewStatusEndpoint:
         assert "priority_score" in review
         assert 0.0 <= review["priority_score"] <= 1.0
 
+    def test_review_includes_phase12_metadata(self) -> None:
+        doc = _upload(self.client, "medical_record.txt")
+        ext = _extract(self.client, doc["id"])
+        resp = self.client.get(
+            f"/documents/{doc['id']}/extractions/{ext['id']}/review"
+        )
+        review = resp.json()
+        assert "document_type" in review
+        assert "output_type" in review
+        assert "review_hints" in review
+        assert isinstance(review["review_hints"], list)
+
 
 class TestSubmitReview:
     """POST review decision transitions status correctly."""
@@ -209,6 +221,74 @@ class TestSubmitCorrection:
         result = resp.json()
         assert result["total_corrections"] == 1
 
+    def test_correction_response_includes_stored_feedback(self) -> None:
+        doc = _upload(self.client, "sample.txt")
+        ext = _extract(self.client, doc["id"])
+        resp = self.client.post(
+            f"/documents/{doc['id']}/extractions/{ext['id']}/correct",
+            json={
+                "reviewer_id": "test-reviewer",
+                "field_corrections": [
+                    {
+                        "field_name": "total_amount",
+                        "corrected_value": "21500.00",
+                        "reason": "Missed one line item",
+                        "failure_source": "retrieval",
+                        "suggested_chunk_id": "chunk-better",
+                    }
+                ],
+                "summary_correction": {
+                    "corrected_summary_text": "Total should be $21,500 after including all line items.",
+                    "reason": "Summary undercounted the total",
+                    "failure_source": "prompt",
+                    "supporting_chunk_ids": ["chunk-better"],
+                },
+                "evidence_mismatches": [
+                    {
+                        "key_point_text": "Total amount was $20,600.",
+                        "chunk_id": "chunk-a",
+                        "mismatch_type": "missing",
+                        "explanation": "Correct amount appears in a later chunk",
+                        "failure_source": "retrieval",
+                        "suggested_chunk_id": "chunk-better",
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        result = resp.json()
+        assert result["correction"]["field_corrections"][0]["failure_source"] == "retrieval"
+        assert result["correction"]["summary_correction"] is None
+        assert result["correction"]["evidence_mismatches"][0]["failure_source"] == "retrieval"
+        assert len(result["feedback_signals"]) >= 3
+
+    def test_can_list_corrections_and_feedback_signals(self) -> None:
+        doc = _upload(self.client, "sample.txt")
+        ext = _extract(self.client, doc["id"])
+        self.client.post(
+            f"/documents/{doc['id']}/extractions/{ext['id']}/correct",
+            json={
+                "reviewer_id": "test-reviewer",
+                "field_corrections": [
+                    {
+                        "field_name": "patient_name",
+                        "corrected_value": "Jane M. Doe",
+                        "reason": "Middle initial missing",
+                    }
+                ],
+            },
+        )
+
+        corrections = self.client.get(
+            f"/documents/{doc['id']}/extractions/{ext['id']}/corrections"
+        )
+        assert corrections.status_code == 200
+        assert len(corrections.json()) >= 1
+
+        feedback = self.client.get(f"/documents/{doc['id']}/feedback-signals")
+        assert feedback.status_code == 200
+        assert len(feedback.json()) >= 1
+
     def test_correction_not_found(self) -> None:
         resp = self.client.post(
             "/documents/fake/extractions/fake/correct",
@@ -328,6 +408,34 @@ class TestAutoAcceptLogic:
         )
         assert any(t == "degraded_parse_quality" for t in triggers)
 
+    def test_critical_document_type_triggers_review(self) -> None:
+        from data_model import DocumentType, ExtractionResult, StructuredField
+        from di_core.review_queue import classify_review_triggers
+
+        result = ExtractionResult(
+            document_id="test",
+            structured_fields=[
+                StructuredField(field_name="patient_name", field_value="Jane Doe", confidence=0.95),
+                StructuredField(field_name="claim_number", field_value="CLM-001", confidence=0.95),
+            ],
+        )
+        triggers = classify_review_triggers(result, document_type=DocumentType.MEDICAL)
+        assert "critical_document_type" in triggers
+
+    def test_unusual_value_triggers_review(self) -> None:
+        from data_model import ExtractionResult, StructuredField
+        from di_core.review_queue import classify_review_triggers
+
+        result = ExtractionResult(
+            document_id="test",
+            structured_fields=[
+                StructuredField(field_name="service_date", field_value="2099-01-01", confidence=0.95),
+                StructuredField(field_name="total_amount", field_value="2500000.00", confidence=0.95),
+            ],
+        )
+        triggers = classify_review_triggers(result)
+        assert "unusual_extracted_value" in triggers
+
     def test_weak_grounding_triggers_review(self) -> None:
         from data_model import ExtractionResult, GroundingAudit
         from di_core.review_queue import classify_review_triggers
@@ -441,6 +549,33 @@ class TestFeedbackSignals:
                     field_name="total_amount",
                     chunk_id="chunk_a",
                     mismatch_type="irrelevant",
+                ),
+            ],
+        )
+        signals = generate_feedback_signals(correction)
+        categories = [s.category for s in signals]
+        assert "retrieval_ranking" in categories
+
+    def test_field_correction_can_map_to_retrieval_signal(self) -> None:
+        from data_model.review import (
+            CorrectionRecord,
+            FeedbackFailureSource,
+            FieldCorrection,
+        )
+        from di_core.review_queue import generate_feedback_signals
+
+        correction = CorrectionRecord(
+            extraction_id="ext1",
+            document_id="doc1",
+            field_corrections=[
+                FieldCorrection(
+                    field_name="total_amount",
+                    original_value="20600.00",
+                    corrected_value="21500.00",
+                    original_confidence=0.9,
+                    reason="Wrong chunk was used",
+                    failure_source=FeedbackFailureSource.RETRIEVAL,
+                    suggested_chunk_id="chunk-better",
                 ),
             ],
         )

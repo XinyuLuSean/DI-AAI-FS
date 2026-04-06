@@ -28,6 +28,8 @@ const TRIGGER_LABELS: Record<ReviewTriggerReason, string> = {
   low_routing_confidence: "Low routing",
   safe_failure: "Safe failure",
   deterministic_contradiction: "Contradiction",
+  critical_document_type: "Critical doc",
+  unusual_extracted_value: "Unusual value",
   manual_request: "Manual",
 };
 
@@ -113,9 +115,15 @@ function QueueItem({
             className={`h-2.5 w-2.5 shrink-0 rounded-full ${priorityColor(item.priority_score)}`}
             title={`Priority: ${(item.priority_score * 100).toFixed(0)}%`}
           />
-          <span className="truncate text-sm font-medium text-gray-900">
-            {item.document_id.slice(0, 10)}...
-          </span>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-gray-900">
+              {item.document_id.slice(0, 10)}...
+            </div>
+            <div className="flex items-center gap-2 text-[10px] text-gray-400">
+              {item.document_type && <span>{item.document_type}</span>}
+              {item.output_type && <span>{item.output_type}</span>}
+            </div>
+          </div>
         </div>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.bg} ${status.text}`}>
           {status.label}
@@ -140,6 +148,16 @@ function QueueItem({
         <span>ext: {item.extraction_id.slice(0, 8)}</span>
         <span>priority: {(item.priority_score * 100).toFixed(0)}%</span>
       </div>
+
+      {item.review_hints.length > 0 && (
+        <div className="mt-2 space-y-1">
+          {item.review_hints.slice(0, 2).map((hint) => (
+            <p key={hint} className="text-[11px] text-gray-500">
+              {hint}
+            </p>
+          ))}
+        </div>
+      )}
     </button>
   );
 }

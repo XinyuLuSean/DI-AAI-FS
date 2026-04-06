@@ -48,6 +48,8 @@ from data_model.pipeline import (
 )
 from data_model.review import (
     CorrectionRecord,
+    FeedbackFailureSource,
+    FeedbackFailureType,
     EvidenceMismatchReport,
     FeedbackCategory,
     FeedbackSignal,
@@ -83,6 +85,8 @@ __all__ = [
     "ExtractionResult",
     "FailureKind",
     "FeedbackCategory",
+    "FeedbackFailureSource",
+    "FeedbackFailureType",
     "FeedbackSignal",
     "FieldCorrection",
     "GroundedKeyPoint",
