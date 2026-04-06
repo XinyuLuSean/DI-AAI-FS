@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="DI-AAI-FS API",
-    description="Document Intelligence + Applied AI backend",
+    description="Local-first document intelligence and applied AI backend",
     version="0.1.0",
     lifespan=lifespan,
 )

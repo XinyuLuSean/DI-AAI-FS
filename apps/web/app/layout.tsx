@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DI-AAI-FS — Document Intelligence Platform",
+  title: "DI-AAI-FS — Document Intelligence Playground",
   description:
-    "Upload documents, extract structured data, and get AI-powered evidence-backed summaries.",
+    "Upload documents, extract structured data, compare retrieval strategies, and review evidence-backed AI outputs.",
 };
 
 export default function RootLayout({
@@ -21,7 +21,7 @@ export default function RootLayout({
               <h1 className="text-lg font-semibold tracking-tight">
                 DI-AAI-FS
                 <span className="ml-2 text-sm font-normal text-gray-500">
-                  Document Intelligence Platform
+                  Document Intelligence Playground
                 </span>
               </h1>
               <nav className="flex items-center gap-1">
@@ -40,7 +40,7 @@ export default function RootLayout({
               </nav>
             </div>
             <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
-              MVP v0.1
+              Open MVP v0.1
             </span>
           </div>
         </header>

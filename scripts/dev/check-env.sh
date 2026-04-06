@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Environment Check Script for DI-AAI-FS
+# Environment Check Script for the DI-AAI-FS playground
 #
 # Run:  bash scripts/dev/check-env.sh
 #
@@ -25,7 +25,7 @@ fail()  { echo -e "  ${RED}✗${NC} $1"; FAIL=$((FAIL + 1)); }
 
 echo ""
 echo "============================================"
-echo "  DI-AAI-FS  Environment Check"
+echo "  DI-AAI-FS  Playground Environment Check"
 echo "============================================"
 echo ""
 

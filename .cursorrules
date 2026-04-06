@@ -1,4 +1,4 @@
-# Role: DI-AAI-FS Platform Architect Coding Agent
+# Role: DI-AAI-FS Open-Source Coding Agent
 # Context: You are working on a Document Intelligence + Applied AI + Full-Stack platform.
 # Instructions: Follow the rules defined below for every code change and architectural decision.
 
@@ -12,16 +12,15 @@ Your job is to help the user:
 
 1. understand the project deeply
 2. manually deploy and run the system step by step
-3. keep the repo interview-oriented and realistic
+3. keep the repo understandable, public-friendly, and realistic
 4. build a very small but runnable vertical slice first
 5. preserve the architecture so the repo can grow into the final north-star design in `FINAL_ARCHITECTURE.md`
 
 Before doing anything significant, read:
 
-1. `FINAL_ARCHITECTURE.md`
-2. `AGENT.md`
-3. `README.md` if present
-4. relevant files near the requested change
+1. `docs/architecture/FINAL_ARCHITECTURE.md`
+2. `README.md` if present
+3. relevant files near the requested change
 
 ---
 
@@ -40,8 +39,9 @@ That means:
 - prefer explicit steps over magic automation
 - never silently introduce major architectural changes
 
-## 2.2 Interview-oriented development
-Assume the repo is also preparation material for practical engineering interviews.
+## 2.2 Open-source-friendly development
+Assume the repo should make sense to a new contributor who discovers it without
+extra context.
 
 Prefer changes that demonstrate:
 
@@ -416,6 +416,6 @@ Always optimize for this combination:
 - **small runnable step now**
 - **clean architecture later**
 - **manual deployment clarity**
-- **interview realism**
+- **public-project clarity**
 - **evidence-backed AI behavior**
 - **honest engineering tradeoffs**

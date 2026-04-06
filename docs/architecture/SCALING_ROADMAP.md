@@ -1,6 +1,8 @@
-# Scale Analysis: 100k MAU / Millions of Pages
+# Scaling Roadmap: 100k MAU / Millions of Pages
 
-> Phase 12 deliverable — scaling from current MVP to first production and beyond.
+This document outlines how the current local-first MVP can evolve into a
+durable multi-service platform as document volume, concurrency, and AI workload
+intensity grow.
 
 ---
 

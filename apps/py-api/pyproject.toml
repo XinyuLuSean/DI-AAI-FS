@@ -1,7 +1,7 @@
 [project]
 name = "py-api"
 version = "0.1.0"
-description = "FastAPI service for DI-AAI-FS — document ingestion, extraction, AI tasks"
+description = "FastAPI service for DI-AAI-FS — document ingestion, extraction, retrieval, and AI tasks"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "fastapi>=0.115",

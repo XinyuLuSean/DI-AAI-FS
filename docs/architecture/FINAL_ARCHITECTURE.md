@@ -2,7 +2,8 @@
 
 ## 1. Purpose
 
-This repository is the long-term north-star architecture for an interview-oriented but production-minded platform that combines:
+This repository is the long-term north-star architecture for a small but
+production-minded platform that combines:
 
 1. **Document Intelligence**
 2. **Applied AI / LLM systems**
@@ -10,7 +11,7 @@ This repository is the long-term north-star architecture for an interview-orient
 
 The repo must support two realities at the same time:
 
-- **Near-term goal:** quickly bootstrap a very small, runnable, interview-ready vertical slice
+- **Near-term goal:** quickly bootstrap a very small, runnable vertical slice
 - **Long-term goal:** grow into a production-grade platform that can ingest large volumes of documents, extract structured information, run evidence-backed AI workflows, and expose those workflows through a reliable full-stack application
 
 This document defines the final architecture, stack constraints, repo structure, scaling path, and design rules. The initial implementation may be tiny, but it must not block future evolution.
@@ -34,7 +35,7 @@ The system must be designed for:
 - correctness first
 - explainability and evidence traceability
 - easy local development
-- interview realism
+- developer clarity and debuggability
 - scalable migration from prototype to production
 
 ---
@@ -331,8 +332,6 @@ Responsibilities:
 
 ```text
 DI-AAI-FS/
-├─ AGENT.md
-├─ AppliedAI.md
 ├─ README.md
 ├─ .editorconfig
 ├─ .gitignore
@@ -347,17 +346,10 @@ DI-AAI-FS/
 │  ├─ architecture/
 │  │  ├─ FINAL_ARCHITECTURE.md
 │  │  ├─ DI_AAI_Map.md
-│  │  └─ DI_Map.md
-│  ├─ document-intelligence/
-│  │  ├─ DocumentIntelligence.md
-│  │  └─ DocumentIntelligence_Phases.md
+│  │  ├─ DI_Map.md
+│  │  └─ SCALING_ROADMAP.md
 │  ├─ applied-ai/
-│  │  ├─ AppliedAI_Phases.md
 │  │  └─ AI_Scale.md
-│  └─ interview-reference/
-│     ├─ DI_Scale.md
-│     ├─ InterviewInfos.md
-│     └─ InterviewInsights.md
 │
 ├─ apps/
 │  ├─ web/                         # Next.js app
@@ -788,7 +780,7 @@ Those belong to later iterations.
 
 This repository is successful when it becomes:
 
-* a small but runnable interview-oriented system at the start
+* a small but runnable open-source system at the start
 * a clean learning environment for manual setup and understanding
 * a serious foundation for document intelligence, applied AI, and full-stack product growth
 * a repo that can scale in complexity without requiring a rewrite of the core boundaries

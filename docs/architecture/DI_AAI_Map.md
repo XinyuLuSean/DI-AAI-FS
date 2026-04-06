@@ -351,22 +351,10 @@ The system is intentionally synchronous and mostly in-memory, but the codebase a
   - This repo-wide map. Start here if you want the full shape before drilling into DI or AI specifics.
 - `README.md`
   - Current repo overview and run instructions.
-- `docs/document-intelligence/DocumentIntelligence.md`
-  - Document Intelligence phase curriculum.
-- `docs/document-intelligence/DocumentIntelligence_Phases.md`
-  - DI phases mapped back onto the current codebase and tests.
-- `AppliedAI.md`
-  - Applied AI phase curriculum.
 - `docs/architecture/DI_Map.md`
   - Baseline AI walkthrough from UI action to API orchestration, chunk selection, prompt execution, and grounded result rendering.
-- `docs/applied-ai/AppliedAI_Phases.md`
-  - Applied AI phases mapped onto the repo's prompt, validation, grounding, ops, and evaluation layers.
-- `docs/interview-reference/DI_Scale.md`
-  - DI scale thought exercise.
-- `docs/interview-reference/InterviewInfos.md`
-  - High-level interview prep notes and framing prompts.
-- `docs/interview-reference/InterviewInsights.md`
-  - Reflection-oriented interview talking points tied to the implemented system.
+- `docs/architecture/SCALING_ROADMAP.md`
+  - Scaling path from the current local MVP to workers, queues, and durable storage.
 - `docs/applied-ai/AI_Scale.md`
   - Applied AI productionization note.
 - `docs/architecture/FINAL_ARCHITECTURE.md`
@@ -425,6 +413,6 @@ This repo is best thought of as five layers:
 - DI and AI engines: `py/libs/di_core` plus `py/libs/ai_core`
 - Evaluation and architecture thinking: `py/libs/di_eval` plus `docs/architecture`
 
-That split is clean enough that you can explain the system in interviews as:
+That split is clean enough that you can describe the system as:
 
 `HTTP/API layer -> domain contracts -> deterministic DI pipeline -> AI pipeline -> review/eval loops`

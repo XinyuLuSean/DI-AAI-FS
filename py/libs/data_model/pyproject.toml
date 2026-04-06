@@ -1,7 +1,7 @@
 [project]
 name = "data-model"
 version = "0.1.0"
-description = "Shared Pydantic schemas and domain models for DI-AAI-FS"
+description = "Shared Pydantic schemas and domain models for the DI-AAI-FS playground"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "pydantic>=2.12",

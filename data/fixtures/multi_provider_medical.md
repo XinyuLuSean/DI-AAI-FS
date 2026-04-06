@@ -639,7 +639,7 @@ Neuro: grossly intact
 **Reason for Referral:** Fall-related anxiety following traumatic fall and hip
 fracture/surgery.
 
-**Clinical Interview:**
+**Clinical Intake:**
 
 Margaret Wilson is a 62-year-old retired schoolteacher who presents for
 evaluation of anxiety symptoms that developed after a fall from an outdoor
