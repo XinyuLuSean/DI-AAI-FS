@@ -332,7 +332,7 @@ Responsibilities:
 ```text
 DI-AAI-FS/
 ├─ AGENT.md
-├─ FINAL_ARCHITECTURE.md
+├─ AppliedAI.md
 ├─ README.md
 ├─ .editorconfig
 ├─ .gitignore
@@ -342,6 +342,22 @@ DI-AAI-FS/
 ├─ uv.lock
 ├─ package.json
 ├─ pnpm-lock.yaml
+│
+├─ docs/
+│  ├─ architecture/
+│  │  ├─ FINAL_ARCHITECTURE.md
+│  │  ├─ DI_AAI_Map.md
+│  │  └─ DI_Map.md
+│  ├─ document-intelligence/
+│  │  ├─ DocumentIntelligence.md
+│  │  └─ DocumentIntelligence_Phases.md
+│  ├─ applied-ai/
+│  │  ├─ AppliedAI_Phases.md
+│  │  └─ AI_Scale.md
+│  └─ interview-reference/
+│     ├─ DI_Scale.md
+│     ├─ InterviewInfos.md
+│     └─ InterviewInsights.md
 │
 ├─ apps/
 │  ├─ web/                         # Next.js app

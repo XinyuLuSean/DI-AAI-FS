@@ -2,7 +2,15 @@
 
 A platform for document ingestion, structured extraction, evidence-backed AI analysis, and human-in-the-loop review.
 
-**Current state:** Document Intelligence Phases 1–12 and Applied AI Phases 1–13 are implemented in the current local-first repo. The system is still intentionally synchronous and in-memory, but it now includes retrieval comparison, hierarchical summarisation, safe-failure handling, review workflows, and Phase 13 AI ops visibility. See `FINAL_ARCHITECTURE.md` for the north-star production design and `docs/architecture/SCALE_ANALYSIS.md` for the scaling roadmap.
+**Current state:** Document Intelligence Phases 1–12 and Applied AI Phases 1–13 are implemented in the current local-first repo. The system is still intentionally synchronous and in-memory, but it now includes retrieval comparison, hierarchical summarisation, safe-failure handling, review workflows, and Phase 13 AI ops visibility. See `docs/architecture/FINAL_ARCHITECTURE.md` for the north-star production design, `docs/interview-reference/DI_Scale.md` for the DI scaling roadmap, and `docs/applied-ai/AI_Scale.md` for the Applied AI productionization note.
+
+## Documentation Guide
+
+- `docs/architecture/DI_AAI_Map.md` is the best repo-wide entry point if you want the full backend, frontend, data, and runtime map.
+- `docs/document-intelligence/DocumentIntelligence.md` and `docs/document-intelligence/DocumentIntelligence_Phases.md` cover the DI learning path and how it maps onto this codebase.
+- `AppliedAI.md` and `docs/applied-ai/AppliedAI_Phases.md` do the same for the Applied AI side.
+- `docs/architecture/DI_Map.md` walks the current baseline AI path end to end.
+- `docs/interview-reference/DI_Scale.md`, `docs/applied-ai/AI_Scale.md`, and `docs/interview-reference/InterviewInsights.md` are the fastest way to review scaling and interview framing.
 
 ## What This System Does
 
@@ -32,8 +40,7 @@ Two UI views:
 
 ```
 DI-AAI-FS/
-├── FINAL_ARCHITECTURE.md       # North-star architecture design
-├── DocumentIntelligence.md     # Phase-by-phase DI deep-dive plan
+├── AppliedAI.md                # Phase-by-phase Applied AI deep-dive plan
 ├── README.md                   # ← you are here
 ├── .env.example                # Environment variable template
 ├── pyproject.toml              # Python workspace (uv)
@@ -109,8 +116,20 @@ DI-AAI-FS/
 │   └── contracts/              # Example JSON request/response shapes
 │
 ├── docs/
-│   └── architecture/
-│       └── SCALE_ANALYSIS.md   # Scaling from MVP to production
+│   ├── applied-ai/
+│   │   ├── AI_Scale.md
+│   │   └── AppliedAI_Phases.md
+│   ├── architecture/
+│   │   ├── DI_AAI_Map.md
+│   │   ├── DI_Map.md
+│   │   └── FINAL_ARCHITECTURE.md
+│   ├── document-intelligence/
+│   │   ├── DocumentIntelligence.md
+│   │   └── DocumentIntelligence_Phases.md
+│   └── interview-reference/
+│       ├── DI_Scale.md
+│       ├── InterviewInfos.md
+│       └── InterviewInsights.md
 │
 └── tests/
     ├── smoke/                  # smoke coverage for DI + Applied AI phases
@@ -238,7 +257,7 @@ This runs the Python test suite plus the web typecheck/build flow. For backend-o
 
 | Decision                                  | Rationale                                                                               |
 | ----------------------------------------- | --------------------------------------------------------------------------------------- |
-| **In-memory document store**              | Simplest path to a working demo. PostgreSQL is the next step (see `SCALE_ANALYSIS.md`). |
+| **In-memory document store**              | Simplest path to a working demo. PostgreSQL is the next step (see `docs/interview-reference/DI_Scale.md`). |
 | **Synchronous pipeline**                  | No worker queue yet. All stages run in the API process.                                 |
 | **LiteLLM adapter**                       | Provider-agnostic LLM calls. Can swap OpenAI ↔ Anthropic ↔ local.                       |
 | **Three chunking strategies**             | Fixed-size (baseline), paragraph-aware, page-bounded — configurable per request.        |
@@ -266,7 +285,7 @@ This runs the Python test suite plus the web typecheck/build flow. For backend-o
 
 ## What Comes Next
 
-Following the build order from `FINAL_ARCHITECTURE.md`:
+Following the build order from `docs/architecture/FINAL_ARCHITECTURE.md`:
 
 1. ~~Repo bootstrap and environment sanity~~ ✓
 2. ~~Minimal FastAPI service~~ ✓
@@ -291,4 +310,3 @@ Following the build order from `FINAL_ARCHITECTURE.md`:
 21. Worker-based async processing (Redis queues)
 22. Durable job state + distributed AI ops metrics
 23. Auth + multi-user review workflows
-
